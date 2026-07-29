@@ -9,11 +9,12 @@ import { getMonthKey } from './utils.js';
 export class Analytics {
   /**
    * Отфильтровать транзакции по периоду
-   * @param {'day'|'week'|'month'|'all'} period 
+   * @param {'day'|'week'|'month'|'custom'|'all'} period 
    * @param {Date|string} [refDate] 
+   * @param {{ startDate?: string, endDate?: string }} [customRange]
    * @returns {Array}
    */
-  static getFilteredTransactions(period = 'month', refDate = new Date()) {
+  static getFilteredTransactions(period = 'month', refDate = new Date(), customRange = {}) {
     const transactions = store.getTransactions();
     const target = new Date(refDate);
 
@@ -25,7 +26,6 @@ export class Analytics {
           return txDate.toDateString() === target.toDateString();
         }
         case 'week': {
-          // Начало недели (понедельник)
           const startOfWeek = new Date(target);
           const day = startOfWeek.getDay() || 7;
           startOfWeek.setDate(startOfWeek.getDate() - day + 1);
@@ -40,6 +40,11 @@ export class Analytics {
         case 'month': {
           return txDate.getFullYear() === target.getFullYear() &&
                  txDate.getMonth() === target.getMonth();
+        }
+        case 'custom': {
+          if (customRange.startDate && t.date < customRange.startDate) return false;
+          if (customRange.endDate && t.date > customRange.endDate) return false;
+          return true;
         }
         case 'all':
         default:
@@ -130,13 +135,71 @@ export class Analytics {
       }
     });
 
-    const sortedDates = Object.keys(map).sort();
-    return sortedDates.map(d => ({
-      date: d,
-      label: d.split('-').slice(1).reverse().join('.'), // DD.MM
-      expense: map[d].expense,
-      income: map[d].income
-    }));
+  /**
+   * Прогноз расходов к концу текущего месяца
+   * @param {Date|string} [refDate] 
+   * @returns {{ spentSoFar: number, projectedTotal: number, daysPassed: number, totalDays: number }}
+   */
+  static getMonthForecast(refDate = new Date()) {
+    const target = new Date(refDate);
+    const now = new Date();
+    
+    // Если выбран прошлый месяц — прогноз равен фактическим расходам
+    if (target.getFullYear() < now.getFullYear() || 
+       (target.getFullYear() === now.getFullYear() && target.getMonth() < now.getMonth())) {
+      const summary = this.getSummary('month', target);
+      return {
+        spentSoFar: summary.totalExpense,
+        projectedTotal: summary.totalExpense,
+        daysPassed: new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate(),
+        totalDays: new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate()
+      };
+    }
+
+    const summary = this.getSummary('month', target);
+    const totalDays = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+    const daysPassed = Math.max(1, target.getDate());
+
+    const spentSoFar = summary.totalExpense;
+    const projectedTotal = Math.round((spentSoFar / daysPassed) * totalDays);
+
+    return {
+      spentSoFar,
+      projectedTotal,
+      daysPassed,
+      totalDays
+    };
+  }
+
+  /**
+   * Получить статус бюджетов по категориям
+   * @param {Date|string} [refDate] 
+   * @returns {Array<{ category: Object, spent: number, limit: number, percent: number, status: 'ok'|'warning'|'danger' }>}
+   */
+  static getBudgetProgress(refDate = new Date()) {
+    const breakdown = this.getCategoryBreakdown('month', refDate);
+    const allCategories = categoryManager.getAll();
+
+    return allCategories.map(cat => {
+      const item = breakdown.find(b => b.category.id === cat.id);
+      const spent = item ? item.amount : 0;
+      const limit = Number(cat.budgetLimit) || 0;
+      const percent = limit > 0 ? (spent / limit) * 100 : 0;
+
+      let status = 'ok';
+      if (limit > 0) {
+        if (percent >= 100) status = 'danger';
+        else if (percent >= 75) status = 'warning';
+      }
+
+      return {
+        category: cat,
+        spent,
+        limit,
+        percent,
+        status
+      };
+    }).filter(b => b.limit > 0 || b.spent > 0);
   }
 
   /**

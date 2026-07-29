@@ -71,9 +71,20 @@
           <div class="stat-change" id="dashboard-expense-change">--</div>
         </div>
         <div class="stat-card">
+          <div class="stat-label">Прогноз трат к концу месяца</div>
+          <div class="stat-value" id="dashboard-forecast-total" style="color: #F39C12;">0 ₪</div>
+          <div class="stat-change" id="dashboard-forecast-sub">Оценка на основе текущего темпа</div>
+        </div>
+        <div class="stat-card">
           <div class="stat-label">Доходы за период</div>
           <div class="stat-value" id="dashboard-total-income" style="color: #27AE60;">0 ₪</div>
         </div>
+      </div>
+
+      <!-- Статус Бюджетов -->
+      <div class="card">
+        <div class="card-title">Состояние бюджетов по категориям</div>
+        <div id="dashboard-budget-progress-list" style="display: flex; flex-direction: column; gap: var(--space-sm);"></div>
       </div>
 
       <div class="card">
@@ -172,11 +183,36 @@
 
     <!-- Экран: Аналитика -->
     <section id="view-analytics" class="view" style="display: none;">
-      <div class="chip-bar" id="analytics-period-selector">
-        <button class="chip-btn" data-period="day">Сутки</button>
-        <button class="chip-btn" data-period="week">Неделя</button>
-        <button class="chip-btn active" data-period="month">Месяц</button>
-        <button class="chip-btn" data-period="all">Всё время</button>
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-md);">
+        <div class="chip-bar" id="analytics-period-selector" style="margin-bottom: 0;">
+          <button class="chip-btn" data-period="day">Сутки</button>
+          <button class="chip-btn" data-period="week">Неделя</button>
+          <button class="chip-btn active" data-period="month">Месяц</button>
+          <button class="chip-btn" data-period="custom">Произвольно</button>
+          <button class="chip-btn" data-period="all">Всё время</button>
+        </div>
+
+        <!-- Навигация по месяца `‹ Июль 2026 ›` -->
+        <div id="analytics-month-nav" style="display: flex; align-items: center; gap: var(--space-sm); background: var(--color-card-bg); padding: 4px 12px; border-radius: var(--radius-pill); border: 1px solid var(--color-surface-border);">
+          <button id="analytics-prev-month" class="btn-icon">◀</button>
+          <span id="analytics-month-label" style="font-weight: 600; min-width: 110px; text-align: center;">Июль 2026</span>
+          <button id="analytics-next-month" class="btn-icon">▶</button>
+        </div>
+      </div>
+
+      <!-- Кастомный диапазон (От / До) -->
+      <div id="analytics-custom-range-box" class="card" style="display: none; padding: var(--space-md);">
+        <div style="display: flex; gap: var(--space-md); align-items: center;">
+          <div style="flex: 1;">
+            <label class="form-label">Дата "От"</label>
+            <input type="date" id="analytics-start-date" class="form-control">
+          </div>
+          <div style="flex: 1;">
+            <label class="form-label">Дата "До"</label>
+            <input type="date" id="analytics-end-date" class="form-control">
+          </div>
+          <button id="analytics-apply-custom-btn" class="btn btn-primary" style="margin-top: 20px;">Применить</button>
+        </div>
       </div>
 
       <div class="card">
@@ -209,9 +245,10 @@
       <div class="card">
         <div class="card-title">Добавить новую категорию</div>
         <form id="new-category-form">
-          <div style="display: grid; grid-template-columns: 70px 1fr 60px; gap: var(--space-sm);">
+          <div style="display: grid; grid-template-columns: 60px 1fr 1fr 50px; gap: var(--space-sm);">
             <input type="text" id="cat-icon-input" class="form-control" placeholder="🍕" maxLength="2" required style="text-align: center;">
-            <input type="text" id="cat-name-input" class="form-control" placeholder="Название категории" required>
+            <input type="text" id="cat-name-input" class="form-control" placeholder="Название" required>
+            <input type="number" id="cat-limit-input" class="form-control" placeholder="Лимит ₪ (опц.)" min="0">
             <input type="color" id="cat-color-input" class="form-control" value="#FF6B35" style="padding: 4px; height: 100%;">
           </div>
           <button type="submit" class="btn btn-primary btn-block" style="margin-top: var(--space-md);">Добавить категорию</button>

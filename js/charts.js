@@ -18,8 +18,9 @@ class ChartManager {
    * Построение Pie/Doughnut диаграммы по категориям
    * @param {HTMLCanvasElement} canvasEl 
    * @param {Array<{ category: Object, amount: number }>} data 
+   * @param {Function} [onSliceClick] 
    */
-  renderCategoryPieChart(canvasEl, data) {
+  renderCategoryPieChart(canvasEl, data, onSliceClick) {
     if (!canvasEl || typeof Chart === 'undefined') return;
     const canvasId = canvasEl.id || 'categoryPieChart';
     this.destroyChart(canvasId);
@@ -52,6 +53,15 @@ class ChartManager {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        onClick: (event, activeElements) => {
+          if (activeElements.length > 0 && typeof onSliceClick === 'function') {
+            const index = activeElements[0].index;
+            const clickedCategory = data[index]?.category;
+            if (clickedCategory) {
+              onSliceClick(clickedCategory);
+            }
+          }
+        },
         plugins: {
           legend: {
             position: 'bottom',

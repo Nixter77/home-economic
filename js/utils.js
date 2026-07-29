@@ -86,6 +86,47 @@ export function formatDateShort(dateInput) {
 }
 
 /**
+ * Безопасное вычисление математического выражения (например "50 + 30.5 * 2")
+ * @param {string} expr 
+ * @returns {number|null}
+ */
+export function evaluateMathExpression(expr) {
+  if (typeof expr !== 'string') return null;
+  const sanitized = expr.replace(/,/g, '.').replace(/[^0-9+\-*/().\s]/g, '').trim();
+  if (!sanitized) return null;
+
+  try {
+    // Безопасное вычисление базовой арифметики с помощью Function
+    const fn = new Function(`return (${sanitized});`);
+    const val = Number(fn());
+    return isNaN(val) || !isFinite(val) ? null : Math.max(0, val);
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Извлекает хештеги из текста заметок (например "#супермаркет #праздник")
+ * @param {string} text 
+ * @returns {string[]}
+ */
+export function extractHashtags(text) {
+  if (typeof text !== 'string') return [];
+  const matches = text.match(/#[a-zA-Z0-9а-яА-ЯёЁ_]+/g);
+  return matches ? Array.from(new Set(matches.map(t => t.toLowerCase()))) : [];
+}
+
+/**
+ * Возвращает количество дней в месяце
+ * @param {number} year 
+ * @param {number} monthIndex (0-11)
+ * @returns {number}
+ */
+export function getDaysInMonth(year, monthIndex) {
+  return new Date(year, monthIndex + 1, 0).getDate();
+}
+
+/**
  * Безопасное экранирование HTML для предотвращения XSS
  * @param {string} str 
  * @returns {string}

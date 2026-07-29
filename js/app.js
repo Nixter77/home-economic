@@ -10,29 +10,28 @@ import { TransactionController } from './transactions.js';
 import { Analytics } from './analytics.js';
 import { chartManager } from './charts.js';
 import { exportDataToJSON, importDataFromJSON } from './export.js';
-import { formatCurrency, formatDateHuman, formatDateISO, escapeHTML } from './utils.js';
+import { formatCurrency, formatDateHuman, formatDateISO, escapeHTML, evaluateMathExpression, extractHashtags } from './utils.js';
 
 // Текущее выбранное состояние периодов
 let currentDashboardPeriod = 'month';
 let currentAnalyticsPeriod = 'month';
 let selectedCategoryForAdd = null;
-let currentTransactionType = 'expense'; // 'expense' | 'income'
+let currentTransactionType = 'expense';
+let currentAnalyticsRefDate = new Date();
+let customAnalyticsRange = { startDate: '', endDate: '' };
 
 document.addEventListener('DOMContentLoaded', () => {
   initApp();
 });
 
 function initApp() {
-  // Установка сохранённой темы
   const savedTheme = store.loadTheme();
   store.setTheme(savedTheme);
 
-  // Настройка темы через кнопку в шапке
   document.getElementById('theme-toggle-btn').addEventListener('click', () => {
     store.toggleTheme();
   });
 
-  // Настройка роутинга
   router.addRoute('dashboard', renderDashboardView);
   router.addRoute('add', renderAddView);
   router.addRoute('history', renderHistoryView);
@@ -41,12 +40,10 @@ function initApp() {
   router.addRoute('settings', renderSettingsView);
   router.setDefaultRoute('dashboard');
 
-  // Подписка на изменение данных в Store
   store.subscribe(() => {
     refreshCurrentView();
   });
 
-  // Инициализация событий для контроллеров
   initFormEvents();
   initDashboardEvents();
   initAnalyticsEvents();
@@ -54,7 +51,6 @@ function initApp() {
   initCategoriesEvents();
   initSettingsEvents();
 
-  // Запуск роутера
   router.start();
 }
 
@@ -77,12 +73,17 @@ function renderDashboardView() {
 
   const summary = Analytics.getSummary(currentDashboardPeriod);
   const comp = Analytics.getComparisonWithPrevious(currentDashboardPeriod);
+  const forecast = Analytics.getMonthForecast();
 
   // Суммы
   document.getElementById('dashboard-total-expense').textContent = formatCurrency(summary.totalExpense);
   document.getElementById('dashboard-total-income').textContent = formatCurrency(summary.totalIncome);
 
-  // Изменение по сравнению с прошлым периодом
+  // Прогноз
+  document.getElementById('dashboard-forecast-total').textContent = formatCurrency(forecast.projectedTotal);
+  document.getElementById('dashboard-forecast-sub').textContent = `Прошло ${forecast.daysPassed} из ${forecast.totalDays} дней`;
+
+  // Изменение
   const changeEl = document.getElementById('dashboard-expense-change');
   if (comp.prevExpense > 0) {
     const diffSign = comp.changePercent > 0 ? '+' : '';
@@ -94,12 +95,19 @@ function renderDashboardView() {
     changeEl.className = 'stat-change';
   }
 
-  // Pie Chart (Категории)
+  // Индикаторы бюджетов категорий
+  renderBudgetProgressList();
+
+  // Pie Chart (Интерактивный клик)
   const categoryData = Analytics.getCategoryBreakdown(currentDashboardPeriod);
   const pieCanvas = document.getElementById('dashboard-pie-chart');
-  chartManager.renderCategoryPieChart(pieCanvas, categoryData);
+  chartManager.renderCategoryPieChart(pieCanvas, categoryData, (clickedCat) => {
+    // Переход на историю с фильтром по этой категории
+    document.getElementById('history-filter-category').value = clickedCat.id;
+    router.navigate('history');
+  });
 
-  // Bar Chart (Временной ряд)
+  // Bar Chart
   const timeSeries = Analytics.getTimeSeriesBreakdown(currentDashboardPeriod);
   const barCanvas = document.getElementById('dashboard-bar-chart');
   chartManager.renderBarChart(barCanvas, timeSeries);
@@ -107,7 +115,40 @@ function renderDashboardView() {
   // Последние 5 транзакций
   const recentList = store.getTransactions().slice(0, 5);
   const recentContainer = document.getElementById('dashboard-recent-list');
-  renderTransactionList(recentContainer, recentList);
+  renderTransactionList(recentContainer, recentList, true);
+}
+
+function renderBudgetProgressList() {
+  const container = document.getElementById('dashboard-budget-progress-list');
+  const progressData = Analytics.getBudgetProgress();
+  container.innerHTML = '';
+
+  if (progressData.length === 0) {
+    container.innerHTML = '<p style="color: var(--color-text-muted); font-size: 0.85rem;">Лимиты категорий не заданы</p>';
+    return;
+  }
+
+  progressData.forEach(item => {
+    const row = document.createElement('div');
+    row.style.cssText = 'padding: 8px 0; border-bottom: 1px solid var(--color-surface-border);';
+
+    const percentClamped = Math.min(100, Math.round(item.percent));
+    const limitLabel = item.limit > 0 ? `/ ${formatCurrency(item.limit)}` : '';
+
+    row.innerHTML = `
+      <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 500;">
+        <span>${item.category.icon} ${escapeHTML(item.category.name)}</span>
+        <span>${formatCurrency(item.spent)} <span style="color: var(--color-text-muted);">${limitLabel}</span></span>
+      </div>
+      ${item.limit > 0 ? `
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill ${item.status}" style="width: ${percentClamped}%;"></div>
+        </div>
+      ` : ''}
+    `;
+
+    container.appendChild(row);
+  });
 }
 
 function initDashboardEvents() {
@@ -193,6 +234,19 @@ function updateTypeButtons() {
 }
 
 function initFormEvents() {
+  const amountInput = document.getElementById('tx-amount');
+  
+  // Калькулятор математических выражений в поле суммы
+  amountInput.addEventListener('blur', () => {
+    const raw = amountInput.value;
+    if (raw && (raw.includes('+') || raw.includes('-') || raw.includes('*') || raw.includes('/'))) {
+      const calcResult = evaluateMathExpression(raw);
+      if (calcResult !== null) {
+        amountInput.value = calcResult;
+      }
+    }
+  });
+
   const expenseBtn = document.getElementById('type-expense-btn');
   const incomeBtn = document.getElementById('type-income-btn');
 
@@ -211,8 +265,11 @@ function initFormEvents() {
     e.preventDefault();
 
     const id = document.getElementById('tx-id').value;
+    const rawAmount = document.getElementById('tx-amount').value;
+    const evaluatedAmount = evaluateMathExpression(rawAmount) || Number(rawAmount);
+
     const formData = {
-      amount: document.getElementById('tx-amount').value,
+      amount: evaluatedAmount,
       type: currentTransactionType,
       category: selectedCategoryForAdd || document.getElementById('tx-category').value,
       date: document.getElementById('tx-date').value,
@@ -291,10 +348,34 @@ function initHistoryEvents() {
 function renderAnalyticsView() {
   showView('view-analytics');
 
+  // Обновление метки месяца
+  const monthName = new Intl.DateTimeFormat('ru-RU', { month: 'long', year: 'numeric' }).format(currentAnalyticsRefDate);
+  document.getElementById('analytics-month-label').textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+
+  const customRangeBox = document.getElementById('analytics-custom-range-box');
+  const monthNav = document.getElementById('analytics-month-nav');
+
+  if (currentAnalyticsPeriod === 'custom') {
+    customRangeBox.style.display = 'block';
+    monthNav.style.display = 'none';
+  } else if (currentAnalyticsPeriod === 'month') {
+    customRangeBox.style.display = 'none';
+    monthNav.style.display = 'flex';
+  } else {
+    customRangeBox.style.display = 'none';
+    monthNav.style.display = 'none';
+  }
+
   // Category Pie Chart
-  const categoryData = Analytics.getCategoryBreakdown(currentAnalyticsPeriod);
+  const categoryData = currentAnalyticsPeriod === 'custom' 
+    ? Analytics.getCategoryBreakdown('custom', currentAnalyticsRefDate, customAnalyticsRange)
+    : Analytics.getCategoryBreakdown(currentAnalyticsPeriod, currentAnalyticsRefDate);
+
   const pieCanvas = document.getElementById('analytics-pie-chart');
-  chartManager.renderCategoryPieChart(pieCanvas, categoryData);
+  chartManager.renderCategoryPieChart(pieCanvas, categoryData, (clickedCat) => {
+    document.getElementById('history-filter-category').value = clickedCat.id;
+    router.navigate('history');
+  });
 
   // Таблица категорий
   const tableContainer = document.getElementById('analytics-category-table');
@@ -348,6 +429,24 @@ function initAnalyticsEvents() {
       renderAnalyticsView();
     }
   });
+
+  // Переключатель месяцев ◀ ▶
+  document.getElementById('analytics-prev-month').addEventListener('click', () => {
+    currentAnalyticsRefDate.setMonth(currentAnalyticsRefDate.getMonth() - 1);
+    renderAnalyticsView();
+  });
+
+  document.getElementById('analytics-next-month').addEventListener('click', () => {
+    currentAnalyticsRefDate.setMonth(currentAnalyticsRefDate.getMonth() + 1);
+    renderAnalyticsView();
+  });
+
+  // Кастомный диапазон
+  document.getElementById('analytics-apply-custom-btn').addEventListener('click', () => {
+    customAnalyticsRange.startDate = document.getElementById('analytics-start-date').value;
+    customAnalyticsRange.endDate = document.getElementById('analytics-end-date').value;
+    renderAnalyticsView();
+  });
 }
 
 /* ==========================================================================
@@ -363,14 +462,30 @@ function renderCategoriesView() {
     const row = document.createElement('div');
     row.style.cssText = 'display: flex; align-items: center; justify-content: space-between; padding: 12px; background: var(--color-card-bg); border: 1px solid var(--color-surface-border); border-radius: var(--radius-md);';
 
+    const limitDisplay = cat.budgetLimit > 0 ? `${cat.budgetLimit} ₪` : 'Без лимита';
+
     row.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
         <span style="font-size: 1.5rem;">${cat.icon}</span>
-        <span style="font-weight: 600;">${escapeHTML(cat.name)}</span>
-        <span style="width: 12px; height: 12px; border-radius: 50%; background: ${cat.color};"></span>
+        <div>
+          <div style="font-weight: 600;">${escapeHTML(cat.name)}</div>
+          <div style="font-size: 0.75rem; color: var(--color-text-muted);">Лимит: ${limitDisplay}</div>
+        </div>
+        <span style="width: 12px; height: 12px; border-radius: 50%; background: ${cat.color}; margin-left: auto;"></span>
       </div>
-      <button class="btn-icon delete-cat-btn" data-id="${cat.id}" title="Удалить">🗑️</button>
+      <div style="display: flex; gap: 4px; margin-left: 8px;">
+        <button class="btn-icon edit-cat-limit-btn" data-id="${cat.id}" title="Изменить лимит">✏️</button>
+        <button class="btn-icon delete-cat-btn" data-id="${cat.id}" title="Удалить">🗑️</button>
+      </div>
     `;
+
+    row.querySelector('.edit-cat-limit-btn').addEventListener('click', () => {
+      const newLimit = prompt(`Укажите лимит бюджета в шекелях (₪) для категории "${cat.name}":`, cat.budgetLimit || 0);
+      if (newLimit !== null) {
+        categoryManager.setBudgetLimit(cat.id, newLimit);
+        renderCategoriesView();
+      }
+    });
 
     row.querySelector('.delete-cat-btn').addEventListener('click', () => {
       if (confirm(`Удалить категорию "${cat.name}"?`)) {
@@ -389,12 +504,13 @@ function initCategoriesEvents() {
     e.preventDefault();
     const icon = document.getElementById('cat-icon-input').value.trim() || '🏷️';
     const name = document.getElementById('cat-name-input').value.trim();
+    const limit = document.getElementById('cat-limit-input')?.value || 0;
     const color = document.getElementById('cat-color-input').value;
 
     if (!name) return;
 
     const id = name.toLowerCase().replace(/\s+/g, '-');
-    const added = categoryManager.addCategory({ id, name, icon, color });
+    const added = categoryManager.addCategory({ id, name, icon, color, budgetLimit: limit });
 
     if (added) {
       form.reset();
@@ -471,6 +587,14 @@ function renderTransactionList(container, list, allowActions = false) {
     const amountPrefix = isExpense ? '-' : '+';
     const amountClass = isExpense ? 'expense' : 'income';
 
+    const hashtags = extractHashtags(tx.note || '');
+    let noteHtml = escapeHTML(tx.note || '');
+    if (hashtags.length > 0) {
+      hashtags.forEach(tag => {
+        noteHtml = noteHtml.replace(tag, `<span class="tag-chip">${tag}</span>`);
+      });
+    }
+
     const item = document.createElement('div');
     item.className = 'tx-item';
 
@@ -478,7 +602,7 @@ function renderTransactionList(container, list, allowActions = false) {
       <div class="tx-info">
         <div class="tx-icon">${cat.icon}</div>
         <div>
-          <div class="tx-title">${escapeHTML(cat.name)} ${tx.note ? `<span style="font-weight: 400; color: var(--color-text-muted);">— ${escapeHTML(tx.note)}</span>` : ''}</div>
+          <div class="tx-title">${escapeHTML(cat.name)} ${tx.note ? `<span style="font-weight: 400; color: var(--color-text-muted);">— ${noteHtml}</span>` : ''}</div>
           <div class="tx-meta">${formatDateHuman(tx.date)}</div>
         </div>
       </div>
@@ -486,6 +610,7 @@ function renderTransactionList(container, list, allowActions = false) {
         <div class="tx-amount ${amountClass}">${amountPrefix}${formatCurrency(tx.amount)}</div>
         ${allowActions ? `
           <div class="tx-actions">
+            <button class="btn-icon repeat-tx-btn" data-id="${tx.id}" title="Повторить операцию">🔄</button>
             <button class="btn-icon edit-tx-btn" data-id="${tx.id}" title="Редактировать">✏️</button>
             <button class="btn-icon delete-tx-btn" data-id="${tx.id}" title="Удалить">🗑️</button>
           </div>
@@ -493,7 +618,30 @@ function renderTransactionList(container, list, allowActions = false) {
       </div>
     `;
 
+    // Клик по тегам для фильтрации
+    item.querySelectorAll('.tag-chip').forEach(chip => {
+      chip.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.getElementById('history-search').value = chip.textContent;
+        router.navigate('history');
+      });
+    });
+
     if (allowActions) {
+      item.querySelector('.repeat-tx-btn')?.addEventListener('click', () => {
+        // Подставить данные для повтора
+        document.getElementById('tx-id').value = '';
+        document.getElementById('tx-amount').value = tx.amount;
+        document.getElementById('tx-date').value = formatDateISO(new Date());
+        document.getElementById('tx-note').value = tx.note || '';
+        currentTransactionType = tx.type;
+        selectedCategoryForAdd = tx.category;
+        document.getElementById('tx-category').value = tx.category;
+        document.getElementById('add-form-title').textContent = 'Повтор операции';
+
+        router.navigate('add');
+      });
+
       item.querySelector('.delete-tx-btn')?.addEventListener('click', () => {
         if (confirm('Удалить эту операцию?')) {
           TransactionController.deleteTransaction(tx.id);
@@ -502,7 +650,6 @@ function renderTransactionList(container, list, allowActions = false) {
       });
 
       item.querySelector('.edit-tx-btn')?.addEventListener('click', () => {
-        // Заполнить форму данными
         document.getElementById('tx-id').value = tx.id;
         document.getElementById('tx-amount').value = tx.amount;
         document.getElementById('tx-date').value = tx.date;
