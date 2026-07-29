@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="midnight">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Home Economic — Домашний Бюджет</title>
+  <meta name="description" content="Удобный трекер домашнего бюджета в шекелях (₪) с категориями, графиками и аналитикой.">
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+  <!-- Шапка приложения -->
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-icon">💰</span>
+      <span>Home Economic</span>
+    </div>
+    <button id="theme-toggle-btn" class="theme-toggle" title="Переключить тему">🌙</button>
+  </header>
+
+  <!-- Боковая / Нижняя навигация -->
+  <nav class="bottom-nav">
+    <a href="#dashboard" class="nav-item active">
+      <span class="nav-icon">📊</span>
+      <span>Обзор</span>
+    </a>
+    <a href="#add" class="nav-item">
+      <span class="nav-icon">➕</span>
+      <span>Добавить</span>
+    </a>
+    <a href="#history" class="nav-item">
+      <span class="nav-icon">📋</span>
+      <span>История</span>
+    </a>
+    <a href="#analytics" class="nav-item">
+      <span class="nav-icon">📈</span>
+      <span>Аналитика</span>
+    </a>
+    <a href="#categories" class="nav-item">
+      <span class="nav-icon">🏷️</span>
+      <span>Категории</span>
+    </a>
+    <a href="#settings" class="nav-item">
+      <span class="nav-icon">⚙️</span>
+      <span>Настройки</span>
+    </a>
+  </nav>
+
+  <!-- Основная область экранов -->
+  <main class="main-content">
+
+    <!-- Экран: Dashboard -->
+    <section id="view-dashboard" class="view">
+      <div class="chip-bar" id="dashboard-period-selector">
+        <button class="chip-btn" data-period="day">Сутки</button>
+        <button class="chip-btn" data-period="week">Неделя</button>
+        <button class="chip-btn active" data-period="month">Месяц</button>
+        <button class="chip-btn" data-period="all">Всё время</button>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">Расходы за период</div>
+          <div class="stat-value" id="dashboard-total-expense">0 ₪</div>
+          <div class="stat-change" id="dashboard-expense-change">--</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Доходы за период</div>
+          <div class="stat-value" id="dashboard-total-income" style="color: #27AE60;">0 ₪</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Структура расходов по категориям</div>
+        <div class="chart-container">
+          <canvas id="dashboard-pie-chart"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Динамика расходов</div>
+        <div class="chart-container">
+          <canvas id="dashboard-bar-chart"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span>Последние транзакции</span>
+          <a href="#history" style="font-size: 0.85rem; color: var(--color-primary); text-decoration: none;">Все →</a>
+        </div>
+        <div class="tx-list" id="dashboard-recent-list"></div>
+      </div>
+    </section>
+
+    <!-- Экран: Добавление транзакции -->
+    <section id="view-add" class="view" style="display: none;">
+      <div class="card">
+        <div class="card-title" id="add-form-title">Новая операция</div>
+        <form id="transaction-form">
+          <input type="hidden" id="tx-id">
+
+          <!-- Переключатель Расход / Доход -->
+          <div class="form-group">
+            <div class="chip-bar" style="width: 100%;">
+              <button type="button" class="chip-btn active" id="type-expense-btn" style="flex: 1;">Расход</button>
+              <button type="button" class="chip-btn" id="type-income-btn" style="flex: 1;">Доход</button>
+            </div>
+          </div>
+
+          <!-- Поле суммы -->
+          <div class="form-group">
+            <label class="form-label" for="tx-amount">Сумма в шекелях (₪)</label>
+            <input type="number" id="tx-amount" class="form-control amount-input" placeholder="0" step="any" min="0.01" required autofocus>
+          </div>
+
+          <!-- Категория -->
+          <div class="form-group">
+            <label class="form-label">Выберите категорию</label>
+            <div class="category-grid" id="tx-category-grid"></div>
+            <input type="hidden" id="tx-category" required>
+          </div>
+
+          <!-- Дата -->
+          <div class="form-group">
+            <label class="form-label" for="tx-date">Дата операции</label>
+            <input type="date" id="tx-date" class="form-control" required>
+          </div>
+
+          <!-- Заметка -->
+          <div class="form-group">
+            <label class="form-label" for="tx-note">Заметка / Комментарий</label>
+            <input type="text" id="tx-note" class="form-control" placeholder="например: Закупка на неделю">
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block" style="margin-top: var(--space-md);">Сохранить операцию</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Экран: История -->
+    <section id="view-history" class="view" style="display: none;">
+      <div class="card">
+        <div class="card-title">Фильтр историй</div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--space-sm);">
+          <select id="history-filter-category" class="form-control">
+            <option value="all">Все категории</option>
+          </select>
+          <select id="history-filter-type" class="form-control">
+            <option value="all">Все типы</option>
+            <option value="expense">Только расходы</option>
+            <option value="income">Только доходы</option>
+          </select>
+          <input type="text" id="history-search" class="form-control" placeholder="Поиск по заметке...">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span>Список операций</span>
+          <span id="history-total-count" style="font-size: 0.85rem; color: var(--color-text-muted);">0 записей</span>
+        </div>
+        <div class="tx-list" id="history-tx-list"></div>
+      </div>
+    </section>
+
+    <!-- Экран: Аналитика -->
+    <section id="view-analytics" class="view" style="display: none;">
+      <div class="chip-bar" id="analytics-period-selector">
+        <button class="chip-btn" data-period="day">Сутки</button>
+        <button class="chip-btn" data-period="week">Неделя</button>
+        <button class="chip-btn active" data-period="month">Месяц</button>
+        <button class="chip-btn" data-period="all">Всё время</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Распределение по категориям</div>
+        <div class="chart-container">
+          <canvas id="analytics-pie-chart"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Детализация по категориям</div>
+        <div id="analytics-category-table"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Тренд и временной ряд</div>
+        <div class="chart-container">
+          <canvas id="analytics-line-chart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Экран: Категории -->
+    <section id="view-categories" class="view" style="display: none;">
+      <div class="card">
+        <div class="card-title">Мои категории</div>
+        <div id="categories-list" style="display: flex; flex-direction: column; gap: var(--space-sm);"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Добавить новую категорию</div>
+        <form id="new-category-form">
+          <div style="display: grid; grid-template-columns: 70px 1fr 60px; gap: var(--space-sm);">
+            <input type="text" id="cat-icon-input" class="form-control" placeholder="🍕" maxLength="2" required style="text-align: center;">
+            <input type="text" id="cat-name-input" class="form-control" placeholder="Название категории" required>
+            <input type="color" id="cat-color-input" class="form-control" value="#FF6B35" style="padding: 4px; height: 100%;">
+          </div>
+          <button type="submit" class="btn btn-primary btn-block" style="margin-top: var(--space-md);">Добавить категорию</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Экран: Настройки -->
+    <section id="view-settings" class="view" style="display: none;">
+      <div class="card">
+        <div class="card-title">Внешний вид</div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span>Тема оформления (Midnight / Light)</span>
+          <button id="settings-theme-toggle" class="btn btn-secondary">Сменить тему</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Резервное копирование</div>
+        <p style="font-size: 0.9rem; color: var(--color-text-muted); margin-bottom: var(--space-md);">Все данные хранятся локально в вашем браузере. Сохраните копию JSON для переноса на другое устройство.</p>
+        <div style="display: flex; gap: var(--space-md);">
+          <button id="export-json-btn" class="btn btn-primary" style="flex: 1;">📥 Скачать бэкап</button>
+          <label class="btn btn-secondary" style="flex: 1; text-align: center; cursor: pointer;">
+            📤 Загрузить бэкап
+            <input type="file" id="import-json-file" accept=".json" style="display: none;">
+          </label>
+        </div>
+      </div>
+
+      <div class="card" style="border-color: rgba(231, 76, 60, 0.3);">
+        <div class="card-title" style="color: #E74C3C;">Опасная зона</div>
+        <p style="font-size: 0.9rem; color: var(--color-text-muted); margin-bottom: var(--space-md);">Полностью очистит все транзакции и сбросит категории до начальных.</p>
+        <button id="reset-data-btn" class="btn btn-danger btn-block">Сбросить все данные</button>
+      </div>
+    </section>
+
+  </main>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
