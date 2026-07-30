@@ -20,6 +20,7 @@ let selectedCategoryForAdd = null;
 let currentTransactionType = 'expense';
 let currentAnalyticsRefDate = new Date();
 let customAnalyticsRange = { startDate: '', endDate: '' };
+let pendingHistoryCategoryId = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   initApp();
@@ -110,9 +111,7 @@ function renderDashboardView() {
   const categoryData = Analytics.getCategoryBreakdown(currentDashboardPeriod);
   const pieCanvas = document.getElementById('dashboard-pie-chart');
   chartManager.renderCategoryPieChart(pieCanvas, categoryData, (clickedCat) => {
-    // Переход на историю с фильтром по этой категории
-    document.getElementById('history-filter-category').value = clickedCat.id;
-    router.navigate('history');
+    openCategoryHistory(clickedCat.id);
   });
 
   // Bar Chart
@@ -145,7 +144,7 @@ function renderBudgetProgressList() {
 
     row.innerHTML = `
       <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 500;">
-        <span>${item.category.icon} ${escapeHTML(item.category.name)}</span>
+        <span>${escapeHTML(item.category.icon)} ${escapeHTML(item.category.name)}</span>
         <span>${formatCurrency(item.spent)} <span style="color: var(--color-text-muted);">${limitLabel}</span></span>
       </div>
       ${item.limit > 0 ? `
@@ -181,9 +180,6 @@ function initDashboardEvents() {
 function renderAddView() {
   showView('view-add');
 
-  // Установка сегодняшней даты по умолчанию
-  document.getElementById('tx-date').value = formatDateISO(new Date());
-
   // Очистить форму если не режим редактирования
   const form = document.getElementById('transaction-form');
   const idInput = document.getElementById('tx-id');
@@ -208,7 +204,7 @@ function renderCategoryGrid() {
     card.dataset.id = cat.id;
 
     card.innerHTML = `
-      <span class="cat-icon">${cat.icon}</span>
+      <span class="cat-icon">${escapeHTML(cat.icon)}</span>
       <span class="cat-name">${escapeHTML(cat.name)}</span>
     `;
 
@@ -315,7 +311,16 @@ function initFormEvents() {
 function renderHistoryView() {
   showView('view-history');
   updateHistoryCategoryFilterOptions();
+  if (pendingHistoryCategoryId) {
+    document.getElementById('history-filter-category').value = pendingHistoryCategoryId;
+    pendingHistoryCategoryId = null;
+  }
   applyHistoryFilters();
+}
+
+function openCategoryHistory(categoryId) {
+  pendingHistoryCategoryId = categoryId;
+  router.navigate('history');
 }
 
 function updateHistoryCategoryFilterOptions() {
@@ -387,8 +392,7 @@ function renderAnalyticsView() {
 
   const pieCanvas = document.getElementById('analytics-pie-chart');
   chartManager.renderCategoryPieChart(pieCanvas, categoryData, (clickedCat) => {
-    document.getElementById('history-filter-category').value = clickedCat.id;
-    router.navigate('history');
+    openCategoryHistory(clickedCat.id);
   });
 
   // Таблица категорий
@@ -411,7 +415,7 @@ function renderAnalyticsView() {
     categoryData.forEach(item => {
       html += `
         <tr style="border-bottom: 1px solid var(--color-surface-border);">
-          <td style="padding: 10px 4px;">${item.category.icon} ${escapeHTML(item.category.name)}</td>
+          <td style="padding: 10px 4px;">${escapeHTML(item.category.icon)} ${escapeHTML(item.category.name)}</td>
           <td style="padding: 10px 4px; text-align: right; font-weight: 600;">${formatCurrency(item.amount)}</td>
           <td style="padding: 10px 4px; text-align: right; color: var(--color-text-muted);">${item.percent.toFixed(1)}%</td>
         </tr>
@@ -428,7 +432,11 @@ function renderAnalyticsView() {
     const monthly = Analytics.getMonthlyBreakdown();
     chartManager.renderLineChart(lineCanvas, monthly);
   } else {
-    const timeSeries = Analytics.getTimeSeriesBreakdown(currentAnalyticsPeriod, currentAnalyticsRefDate);
+    const timeSeries = Analytics.getTimeSeriesBreakdown(
+      currentAnalyticsPeriod,
+      currentAnalyticsRefDate,
+      customAnalyticsRange
+    );
     chartManager.renderLineChart(lineCanvas, timeSeries);
   }
 }
@@ -487,7 +495,7 @@ function renderCategoriesView() {
 
     row.innerHTML = `
       <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
-        <span style="font-size: 1.5rem;">${cat.icon}</span>
+        <span style="font-size: 1.5rem;">${escapeHTML(cat.icon)}</span>
         <div>
           <div style="font-weight: 600;">${escapeHTML(cat.name)}</div>
           <div style="font-size: 0.75rem; color: var(--color-text-muted);">Лимит: ${limitDisplay}</div>
@@ -495,8 +503,8 @@ function renderCategoriesView() {
         <span style="width: 12px; height: 12px; border-radius: 50%; background: ${safeColor}; margin-left: auto;"></span>
       </div>
       <div style="display: flex; gap: 4px; margin-left: 8px;">
-        <button class="btn-icon edit-cat-limit-btn" data-id="${cat.id}" title="Изменить лимит">✏️</button>
-        <button class="btn-icon delete-cat-btn" data-id="${cat.id}" title="Удалить">🗑️</button>
+        <button class="btn-icon edit-cat-limit-btn" title="Изменить лимит">✏️</button>
+        <button class="btn-icon delete-cat-btn" title="Удалить">🗑️</button>
       </div>
     `;
 
@@ -624,7 +632,7 @@ function renderTransactionList(container, list, allowActions = false) {
 
     item.innerHTML = `
       <div class="tx-info">
-        <div class="tx-icon">${cat.icon}</div>
+        <div class="tx-icon">${escapeHTML(cat.icon)}</div>
         <div>
           <div class="tx-title">${escapeHTML(cat.name)} ${tx.note ? `<span style="font-weight: 400; color: var(--color-text-muted);">— ${noteHtml}</span>` : ''}</div>
           <div class="tx-meta">${formatDateHuman(tx.date)}</div>
@@ -634,9 +642,9 @@ function renderTransactionList(container, list, allowActions = false) {
         <div class="tx-amount ${amountClass}">${amountPrefix}${formatCurrency(tx.amount)}</div>
         ${allowActions ? `
           <div class="tx-actions">
-            <button class="btn-icon repeat-tx-btn" data-id="${tx.id}" title="Повторить операцию">🔄</button>
-            <button class="btn-icon edit-tx-btn" data-id="${tx.id}" title="Редактировать">✏️</button>
-            <button class="btn-icon delete-tx-btn" data-id="${tx.id}" title="Удалить">🗑️</button>
+            <button class="btn-icon repeat-tx-btn" title="Повторить операцию">🔄</button>
+            <button class="btn-icon edit-tx-btn" title="Редактировать">✏️</button>
+            <button class="btn-icon delete-tx-btn" title="Удалить">🗑️</button>
           </div>
         ` : ''}
       </div>

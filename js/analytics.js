@@ -140,8 +140,8 @@ export class Analytics {
    * @param {'week'|'month'} period 
    * @returns {Array<{ date: string, label: string, expense: number, income: number }>}
    */
-  static getTimeSeriesBreakdown(period = 'month', refDate = new Date()) {
-    const list = this.getFilteredTransactions(period, refDate);
+  static getTimeSeriesBreakdown(period = 'month', refDate = new Date(), customRange = {}) {
+    const list = this.getFilteredTransactions(period, refDate, customRange);
     const target = new Date(refDate);
     const map = {};
 

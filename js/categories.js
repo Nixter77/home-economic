@@ -17,6 +17,24 @@ export const DEFAULT_CATEGORIES = [
 ];
 
 const CATEGORIES_KEY = 'he_categories';
+const DEFAULT_COLOR = '#607D8B';
+
+function normalizeCategory(category) {
+  if (!category || typeof category !== 'object') return null;
+
+  const id = String(category.id || '').trim();
+  const name = String(category.name || '').trim();
+  if (!id || !name) return null;
+
+  const color = String(category.color || '');
+  return {
+    id,
+    name,
+    icon: String(category.icon || '🏷️'),
+    color: /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : DEFAULT_COLOR,
+    budgetLimit: Math.max(0, Number(category.budgetLimit) || 0)
+  };
+}
 
 class CategoryManager {
   constructor() {
@@ -29,7 +47,8 @@ class CategoryManager {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          const categories = parsed.map(normalizeCategory).filter(Boolean);
+          if (categories.length > 0) return categories;
         }
       }
     } catch (e) {
@@ -60,17 +79,11 @@ class CategoryManager {
   }
 
   addCategory(category) {
-    if (!category.id || !category.name) return false;
-    if (this.categories.some(c => c.id === category.id)) {
+    const normalized = normalizeCategory(category);
+    if (!normalized || this.categories.some(c => c.id === normalized.id)) {
       return false;
     }
-    this.categories.push({
-      id: category.id,
-      name: category.name,
-      icon: category.icon || '🏷️',
-      color: category.color || '#607D8B',
-      budgetLimit: Number(category.budgetLimit) || 0
-    });
+    this.categories.push(normalized);
     this.saveCategories();
     return true;
   }

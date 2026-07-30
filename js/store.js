@@ -3,6 +3,8 @@
  * Взаимодействие с localStorage и управление состоянием
  */
 
+import { generateUUID } from './utils.js';
+
 const TRANSACTIONS_KEY = 'he_transactions';
 const THEME_KEY = 'he_theme';
 
@@ -76,9 +78,16 @@ class Store {
     return this.transactions.find(t => t.id === id) || null;
   }
 
+  createUniqueId(candidate, usedIds = new Set(this.transactions.map(t => t.id))) {
+    const preferred = typeof candidate === 'string' ? candidate.trim() : '';
+    const id = preferred && !usedIds.has(preferred) ? preferred : generateUUID();
+    usedIds.add(id);
+    return id;
+  }
+
   addTransaction(tx) {
     const newTx = {
-      id: tx.id || String(Date.now()),
+      id: this.createUniqueId(tx.id),
       amount: Number(tx.amount) || 0,
       type: tx.type || 'expense', // 'expense' | 'income'
       category: tx.category || 'other',
@@ -127,10 +136,11 @@ class Store {
   importData(data) {
     if (data && Array.isArray(data.transactions)) {
       // Coerce and validate each transaction to prevent NaN / type errors downstream
+      const usedIds = new Set();
       this.transactions = data.transactions
         .filter(t => t && typeof t === 'object')
         .map(t => ({
-          id: String(t.id || Date.now()),
+          id: this.createUniqueId(t.id, usedIds),
           amount: Math.max(0, Number(t.amount) || 0),
           type: t.type === 'income' ? 'income' : 'expense',
           category: String(t.category || 'other'),
