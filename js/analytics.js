@@ -6,6 +6,27 @@ import { store } from './store.js';
 import { categoryManager } from './categories.js';
 import { getMonthKey } from './utils.js';
 
+/**
+ * Локальный ключ даты YYYY-MM-DD (без смещения часового пояса)
+ * @param {Date} d
+ * @returns {string}
+ */
+function formatDateKey(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Короткая подпись дня недели для графиков (Пн, Вт, ...)
+ * @param {Date} d
+ * @returns {string}
+ */
+function formatDayLabel(d) {
+  return new Intl.DateTimeFormat('ru-RU', { weekday: 'short' }).format(d);
+}
+
 export class Analytics {
   /**
    * Отфильтровать транзакции по периоду
@@ -58,8 +79,8 @@ export class Analytics {
    * @param {'day'|'week'|'month'|'all'} period 
    * @returns {{ totalExpense: number, totalIncome: number, balance: number }}
    */
-  static getSummary(period = 'month') {
-    const list = this.getFilteredTransactions(period);
+  static getSummary(period = 'month', refDate = new Date()) {
+    const list = this.getFilteredTransactions(period, refDate);
     let totalExpense = 0;
     let totalIncome = 0;
 
@@ -84,8 +105,8 @@ export class Analytics {
    * @param {'day'|'week'|'month'|'all'} period 
    * @returns {Array<{ category: Object, amount: number, percent: number, count: number }>}
    */
-  static getCategoryBreakdown(period = 'month') {
-    const list = this.getFilteredTransactions(period).filter(t => t.type !== 'income');
+  static getCategoryBreakdown(period = 'month', refDate = new Date(), customRange = {}) {
+    const list = this.getFilteredTransactions(period, refDate, customRange).filter(t => t.type !== 'income');
     const totalsByCategory = {};
     const countsByCategory = {};
     let totalExpense = 0;
@@ -119,8 +140,9 @@ export class Analytics {
    * @param {'week'|'month'} period 
    * @returns {Array<{ date: string, label: string, expense: number, income: number }>}
    */
-  static getTimeSeriesBreakdown(period = 'month') {
-    const list = this.getFilteredTransactions(period);
+  static getTimeSeriesBreakdown(period = 'month', refDate = new Date()) {
+    const list = this.getFilteredTransactions(period, refDate);
+    const target = new Date(refDate);
     const map = {};
 
     list.forEach(t => {
@@ -134,6 +156,52 @@ export class Analytics {
         map[dateStr].expense += Number(t.amount) || 0;
       }
     });
+
+    // Формируем непрерывный ряд по дням периода
+    const result = [];
+    const cursor = new Date(target);
+
+    if (period === 'week') {
+      const day = cursor.getDay() || 7;
+      cursor.setDate(cursor.getDate() - day + 1); // понедельник
+      for (let i = 0; i < 7; i++) {
+        const key = formatDateKey(cursor);
+        result.push({
+          date: key,
+          label: formatDayLabel(cursor),
+          expense: map[key]?.expense || 0,
+          income: map[key]?.income || 0
+        });
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    } else if (period === 'month') {
+      cursor.setDate(1);
+      const daysInMonth = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
+      for (let i = 0; i < daysInMonth; i++) {
+        const key = formatDateKey(cursor);
+        result.push({
+          date: key,
+          label: String(cursor.getDate()),
+          expense: map[key]?.expense || 0,
+          income: map[key]?.income || 0
+        });
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    } else {
+      // day / all — только дни с данными, по возрастанию
+      const keys = Object.keys(map).sort();
+      keys.forEach(key => {
+        result.push({
+          date: key,
+          label: key.slice(8, 10) + '.' + key.slice(5, 7),
+          expense: map[key].expense,
+          income: map[key].income
+        });
+      });
+    }
+
+    return result;
+  }
 
   /**
    * Прогноз расходов к концу текущего месяца

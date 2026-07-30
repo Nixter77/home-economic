@@ -11,6 +11,7 @@ import { Analytics } from './analytics.js';
 import { chartManager } from './charts.js';
 import { exportDataToJSON, importDataFromJSON } from './export.js';
 import { formatCurrency, formatDateHuman, formatDateISO, escapeHTML, evaluateMathExpression, extractHashtags } from './utils.js';
+import { initRipples, countUp, staggerChildren } from './motion.js';
 
 // Текущее выбранное состояние периодов
 let currentDashboardPeriod = 'month';
@@ -31,6 +32,9 @@ function initApp() {
   document.getElementById('theme-toggle-btn').addEventListener('click', () => {
     store.toggleTheme();
   });
+
+  // Ripple-эффект на всех кнопках .btn
+  initRipples();
 
   router.addRoute('dashboard', renderDashboardView);
   router.addRoute('add', renderAddView);
@@ -75,12 +79,12 @@ function renderDashboardView() {
   const comp = Analytics.getComparisonWithPrevious(currentDashboardPeriod);
   const forecast = Analytics.getMonthForecast();
 
-  // Суммы
-  document.getElementById('dashboard-total-expense').textContent = formatCurrency(summary.totalExpense);
-  document.getElementById('dashboard-total-income').textContent = formatCurrency(summary.totalIncome);
+  // Суммы (с count-up анимацией)
+  countUp(document.getElementById('dashboard-total-expense'), summary.totalExpense, formatCurrency);
+  countUp(document.getElementById('dashboard-total-income'), summary.totalIncome, formatCurrency);
 
   // Прогноз
-  document.getElementById('dashboard-forecast-total').textContent = formatCurrency(forecast.projectedTotal);
+  countUp(document.getElementById('dashboard-forecast-total'), forecast.projectedTotal, formatCurrency);
   document.getElementById('dashboard-forecast-sub').textContent = `Прошло ${forecast.daysPassed} из ${forecast.totalDays} дней`;
 
   // Изменение
@@ -149,6 +153,9 @@ function renderBudgetProgressList() {
 
     container.appendChild(row);
   });
+
+  // Каскадная анимация появления индикаторов бюджетов
+  staggerChildren(container);
 }
 
 function initDashboardEvents() {
@@ -210,6 +217,9 @@ function renderCategoryGrid() {
 
     grid.appendChild(card);
   });
+
+  // Каскадная анимация появления карточек категорий
+  staggerChildren(grid, 30);
 
   // Выбрать первую по умолчанию, если не выбрано
   if (!selectedCategoryForAdd && categories.length > 0) {
@@ -414,7 +424,7 @@ function renderAnalyticsView() {
     const monthly = Analytics.getMonthlyBreakdown();
     chartManager.renderLineChart(lineCanvas, monthly);
   } else {
-    const timeSeries = Analytics.getTimeSeriesBreakdown(currentAnalyticsPeriod);
+    const timeSeries = Analytics.getTimeSeriesBreakdown(currentAnalyticsPeriod, currentAnalyticsRefDate);
     chartManager.renderLineChart(lineCanvas, timeSeries);
   }
 }
@@ -496,6 +506,9 @@ function renderCategoriesView() {
 
     container.appendChild(row);
   });
+
+  // Каскадная анимация появления категорий
+  staggerChildren(container);
 }
 
 function initCategoriesEvents() {
@@ -665,4 +678,7 @@ function renderTransactionList(container, list, allowActions = false) {
 
     container.appendChild(item);
   });
+
+  // Каскадная анимация появления элементов списка
+  staggerChildren(container);
 }

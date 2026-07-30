@@ -36,14 +36,31 @@ class Store {
   }
 
   loadTheme() {
-    return localStorage.getItem(THEME_KEY) || 'midnight';
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved === 'midnight' || saved === 'light') return saved;
+    // Уважаем системное предпочтение, по умолчанию — светлая тема
+    try {
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        return 'midnight';
+      }
+    } catch (e) { /* ignore */ }
+    return 'light';
   }
 
   setTheme(themeName) {
     this.theme = themeName;
     localStorage.setItem(THEME_KEY, themeName);
     document.documentElement.setAttribute('data-theme', themeName);
+    this.updateThemeToggleIcon();
     this.notify();
+  }
+
+  updateThemeToggleIcon() {
+    const btn = document.getElementById('theme-toggle-btn');
+    if (btn) {
+      btn.textContent = this.theme === 'midnight' ? '☀️' : '🌙';
+      btn.title = this.theme === 'midnight' ? 'Переключить на светлую тему' : 'Переключить на тёмную тему';
+    }
   }
 
   toggleTheme() {

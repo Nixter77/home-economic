@@ -1,10 +1,25 @@
 <!DOCTYPE html>
-<html lang="ru" data-theme="midnight">
+<html lang="ru" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Home Economic — Домашний Бюджет</title>
   <meta name="description" content="Удобный трекер домашнего бюджета в шекелях (₪) с категориями, графиками и аналитикой.">
+  <!-- Тема применяется до первой отрисовки, чтобы избежать вспышки -->
+  <script>
+    (function () {
+      var t = 'light';
+      try {
+        var saved = localStorage.getItem('he_theme');
+        if (saved === 'midnight' || saved === 'light') {
+          t = saved;
+        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          t = 'midnight';
+        }
+      } catch (e) {}
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
   <link rel="stylesheet" href="css/style.css">
   <!-- Google Fonts: Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -21,7 +36,7 @@
       <span class="brand-icon">💰</span>
       <span>Home Economic</span>
     </div>
-    <button id="theme-toggle-btn" class="theme-toggle" title="Переключить тему">🌙</button>
+    <button id="theme-toggle-btn" class="theme-toggle" title="Переключить на тёмную тему">🌙</button>
   </header>
 
   <!-- Боковая / Нижняя навигация -->
@@ -261,7 +276,7 @@
       <div class="card">
         <div class="card-title">Внешний вид</div>
         <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span>Тема оформления (Midnight / Light)</span>
+          <span>Тема оформления (Light / Midnight)</span>
           <button id="settings-theme-toggle" class="btn btn-secondary">Сменить тему</button>
         </div>
       </div>

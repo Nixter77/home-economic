@@ -1,6 +1,33 @@
 /**
  * Интеграция и визуализация Chart.js для Home Economic
+ * Анимации соответствуют motion-токенам DESIGN.md.
+ * При prefers-reduced-motion анимации графиков отключаются.
  */
+
+function chartAnimationConfig() {
+  const reduced = typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  return reduced
+    ? { duration: 0 }
+    : {
+        duration: 700,
+        easing: 'easeOutCubic'
+      };
+}
+
+function getThemeColors() {
+  const isMidnight = document.documentElement.getAttribute('data-theme') === 'midnight';
+  return {
+    isMidnight,
+    textColor: isMidnight ? '#E8E8ED' : '#1D1D1F',
+    gridColor: isMidnight ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+    borderColor: isMidnight ? '#141418' : '#FFFFFF',
+    accent: isMidnight ? '#2F6FCB' : '#0071E3',
+    accentFill: isMidnight ? 'rgba(47, 111, 203, 0.15)' : 'rgba(0, 113, 227, 0.12)'
+  };
+}
 
 class ChartManager {
   constructor() {
@@ -35,8 +62,7 @@ class ChartManager {
     const amounts = data.map(item => item.amount);
     const bgColors = data.map(item => item.category.color);
 
-    const isMidnight = document.documentElement.getAttribute('data-theme') === 'midnight';
-    const textColor = isMidnight ? '#E8E8ED' : '#1D1D1F';
+    const theme = getThemeColors();
 
     this.instances[canvasId] = new Chart(canvasEl, {
       type: 'doughnut',
@@ -46,13 +72,18 @@ class ChartManager {
           data: amounts,
           backgroundColor: bgColors,
           borderWidth: 2,
-          borderColor: isMidnight ? '#141418' : '#FFFFFF',
-          hoverOffset: 6
+          borderColor: theme.borderColor,
+          hoverOffset: 8
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        animation: {
+          ...chartAnimationConfig(),
+          animateRotate: true,
+          animateScale: true
+        },
         onClick: (event, activeElements) => {
           if (activeElements.length > 0 && typeof onSliceClick === 'function') {
             const index = activeElements[0].index;
@@ -66,7 +97,7 @@ class ChartManager {
           legend: {
             position: 'bottom',
             labels: {
-              color: textColor,
+              color: theme.textColor,
               font: { family: 'Inter, sans-serif', size: 12 },
               padding: 12
             }
@@ -99,9 +130,7 @@ class ChartManager {
 
     const labels = data.map(item => item.label);
     const expenses = data.map(item => item.expense);
-    const isMidnight = document.documentElement.getAttribute('data-theme') === 'midnight';
-    const textColor = isMidnight ? '#E8E8ED' : '#1D1D1F';
-    const gridColor = isMidnight ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
+    const theme = getThemeColors();
 
     this.instances[canvasId] = new Chart(canvasEl, {
       type: 'bar',
@@ -110,14 +139,18 @@ class ChartManager {
         datasets: [{
           label: 'Расходы (₪)',
           data: expenses,
-          backgroundColor: '#0071E3',
-          borderRadius: 6,
+          backgroundColor: theme.accent,
+          borderRadius: 8,
           borderSkipped: false
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        animation: {
+          ...chartAnimationConfig(),
+          delay: (context) => context.dataIndex * 30
+        },
         plugins: {
           legend: { display: false },
           tooltip: {
@@ -129,12 +162,12 @@ class ChartManager {
         scales: {
           x: {
             grid: { display: false },
-            ticks: { color: textColor, font: { family: 'Inter, sans-serif', size: 11 } }
+            ticks: { color: theme.textColor, font: { family: 'Inter, sans-serif', size: 11 } }
           },
           y: {
-            grid: { color: gridColor },
+            grid: { color: theme.gridColor },
             ticks: {
-              color: textColor,
+              color: theme.textColor,
               font: { family: 'Inter, sans-serif', size: 11 },
               callback: (val) => `${val} ₪`
             }
@@ -158,9 +191,7 @@ class ChartManager {
 
     const labels = data.map(item => item.label);
     const expenses = data.map(item => item.expense);
-    const isMidnight = document.documentElement.getAttribute('data-theme') === 'midnight';
-    const textColor = isMidnight ? '#E8E8ED' : '#1D1D1F';
-    const gridColor = isMidnight ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
+    const theme = getThemeColors();
 
     this.instances[canvasId] = new Chart(canvasEl, {
       type: 'line',
@@ -169,17 +200,21 @@ class ChartManager {
         datasets: [{
           label: 'Тренд расходов (₪)',
           data: expenses,
-          borderColor: '#2F6FCB',
-          backgroundColor: 'rgba(47, 111, 203, 0.15)',
+          borderColor: theme.accent,
+          backgroundColor: theme.accentFill,
           fill: true,
-          tension: 0.35,
+          tension: 0.4,
           pointRadius: 4,
-          pointBackgroundColor: '#2F6FCB'
+          pointHoverRadius: 6,
+          pointBackgroundColor: theme.accent,
+          pointBorderColor: theme.borderColor,
+          pointBorderWidth: 2
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        animation: chartAnimationConfig(),
         plugins: {
           legend: { display: false },
           tooltip: {
@@ -191,12 +226,12 @@ class ChartManager {
         scales: {
           x: {
             grid: { display: false },
-            ticks: { color: textColor, font: { family: 'Inter, sans-serif', size: 11 } }
+            ticks: { color: theme.textColor, font: { family: 'Inter, sans-serif', size: 11 } }
           },
           y: {
-            grid: { color: gridColor },
+            grid: { color: theme.gridColor },
             ticks: {
-              color: textColor,
+              color: theme.textColor,
               font: { family: 'Inter, sans-serif', size: 11 },
               callback: (val) => `${val} ₪`
             }
