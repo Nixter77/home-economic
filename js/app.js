@@ -623,7 +623,9 @@ function renderTransactionList(container, list, allowActions = false) {
     let noteHtml = escapeHTML(tx.note || '');
     if (hashtags.length > 0) {
       hashtags.forEach(tag => {
-        noteHtml = noteHtml.replace(tag, `<span class="tag-chip">${tag}</span>`);
+        const escapedTag = escapeHTML(tag);
+        const regex = new RegExp(`(?<=^|\\s)(${escapedTag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})(?=\\s|$)`, 'g');
+        noteHtml = noteHtml.replace(regex, '<span class="tag-chip">$1</span>');
       });
     }
 

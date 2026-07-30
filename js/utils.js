@@ -92,14 +92,84 @@ export function formatDateShort(dateInput) {
  */
 export function evaluateMathExpression(expr) {
   if (typeof expr !== 'string') return null;
-  const sanitized = expr.replace(/,/g, '.').replace(/[^0-9+\-*/().\s]/g, '').trim();
-  if (!sanitized) return null;
+
+  const cleanExpr = expr.replace(/,/g, '.').trim();
+  if (!cleanExpr) return null;
+
+  const tokens = cleanExpr.match(/\d+(?:\.\d+)?|[+\-*/()]/g);
+  if (!tokens || tokens.join('') !== cleanExpr.replace(/\s+/g, '')) {
+    return null;
+  }
+
+  let index = 0;
+
+  function parsePrimary() {
+    const token = tokens[index];
+    if (!token) return null;
+
+    if (token === '(') {
+      index++;
+      const val = parseExpression();
+      if (tokens[index] !== ')') return null;
+      index++;
+      return val;
+    }
+
+    if (token === '-') {
+      index++;
+      const val = parsePrimary();
+      return val !== null ? -val : null;
+    }
+
+    const num = parseFloat(token);
+    if (isNaN(num)) return null;
+    index++;
+    return num;
+  }
+
+  function parseTerm() {
+    let left = parsePrimary();
+    if (left === null) return null;
+
+    while (index < tokens.length && (tokens[index] === '*' || tokens[index] === '/')) {
+      const operator = tokens[index++];
+      const right = parsePrimary();
+      if (right === null) return null;
+
+      if (operator === '*') {
+        left *= right;
+      } else if (operator === '/') {
+        if (right === 0) return null;
+        left /= right;
+      }
+    }
+    return left;
+  }
+
+  function parseExpression() {
+    let left = parseTerm();
+    if (left === null) return null;
+
+    while (index < tokens.length && (tokens[index] === '+' || tokens[index] === '-')) {
+      const operator = tokens[index++];
+      const right = parseTerm();
+      if (right === null) return null;
+
+      if (operator === '+') {
+        left += right;
+      } else if (operator === '-') {
+        left -= right;
+      }
+    }
+    return left;
+  }
 
   try {
-    // Безопасное вычисление базовой арифметики с помощью Function
-    const fn = new Function(`return (${sanitized});`);
-    const val = Number(fn());
-    return isNaN(val) || !isFinite(val) ? null : Math.max(0, val);
+    const result = parseExpression();
+    if (index !== tokens.length || result === null || !isFinite(result)) {
+      return null;
+    }
+    return Math.max(0, result);
   } catch (e) {
     return null;
   }

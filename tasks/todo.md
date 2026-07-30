@@ -125,3 +125,11 @@
 - [x] Run syntax checks on all 10 ES modules (`node --input-type=module --check < file.js`).
 - [x] Commit changes with Conventional Commits and push `codex/review-critical-fixes` to `origin`.
 
+## Security & Refactoring Fixes — 2026-07-30
+
+- [x] **Eliminated `new Function()` in `utils.js`**: Implemented zero-dependency Recursive Descent AST Math Parser for safe evaluation of expressions like `50 + 30.5 * 2`.
+- [x] **Hardened Hashtag Highlighting in `app.js`**: Replaced unanchored string replacement with regex boundary matching to prevent attribute/HTML corruption.
+- [x] **DRY Consolidation in `analytics.js`**: Replaced duplicate `formatDateKey` with `formatDateISO` from `utils.js`.
+- [x] **Module Syntax Verification**: Validated all JS modules with `node --input-type=module --check`.
+
+

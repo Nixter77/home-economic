@@ -4,19 +4,7 @@
 
 import { store } from './store.js';
 import { categoryManager } from './categories.js';
-import { getMonthKey } from './utils.js';
-
-/**
- * Локальный ключ даты YYYY-MM-DD (без смещения часового пояса)
- * @param {Date} d
- * @returns {string}
- */
-function formatDateKey(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
+import { getMonthKey, formatDateISO } from './utils.js';
 
 /**
  * Короткая подпись дня недели для графиков (Пн, Вт, ...)
@@ -165,7 +153,7 @@ export class Analytics {
       const day = cursor.getDay() || 7;
       cursor.setDate(cursor.getDate() - day + 1); // понедельник
       for (let i = 0; i < 7; i++) {
-        const key = formatDateKey(cursor);
+        const key = formatDateISO(cursor);
         result.push({
           date: key,
           label: formatDayLabel(cursor),
@@ -178,7 +166,7 @@ export class Analytics {
       cursor.setDate(1);
       const daysInMonth = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
       for (let i = 0; i < daysInMonth; i++) {
-        const key = formatDateKey(cursor);
+        const key = formatDateISO(cursor);
         result.push({
           date: key,
           label: String(cursor.getDate()),
@@ -192,7 +180,7 @@ export class Analytics {
       const end = new Date(customRange.endDate);
       const curr = new Date(start);
       while (curr <= end) {
-        const key = formatDateKey(curr);
+        const key = formatDateISO(curr);
         result.push({
           date: key,
           label: key.slice(8, 10) + '.' + key.slice(5, 7),
