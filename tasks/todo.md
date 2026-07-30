@@ -117,3 +117,11 @@
 - [x] Регрессии: custom-диапазон не пропускает записи вне дат; импорт создаёт
   уникальные идентификаторы даже при дубликатах.
 - [x] Конфигурация Vercel валидна; `git diff --check` без ошибок.
+
+## Implementation — 2026-07-30 (D³ Plan Alignment)
+
+- [x] Pass selected custom range into `Analytics.getTimeSeriesBreakdown` to calculate continuous time-series chart data (`js/analytics.js`).
+- [x] Validate category fields and sanitize HTML markup from category icons in `normalizeCategory` & `updateCategory` at persistence boundary (`js/categories.js`).
+- [x] Run syntax checks on all 10 ES modules (`node --input-type=module --check < file.js`).
+- [x] Commit changes with Conventional Commits and push `codex/review-critical-fixes` to `origin`.
+

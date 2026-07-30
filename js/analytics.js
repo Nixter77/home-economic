@@ -187,6 +187,20 @@ export class Analytics {
         });
         cursor.setDate(cursor.getDate() + 1);
       }
+    } else if (period === 'custom' && customRange.startDate && customRange.endDate) {
+      const start = new Date(customRange.startDate);
+      const end = new Date(customRange.endDate);
+      const curr = new Date(start);
+      while (curr <= end) {
+        const key = formatDateKey(curr);
+        result.push({
+          date: key,
+          label: key.slice(8, 10) + '.' + key.slice(5, 7),
+          expense: map[key]?.expense || 0,
+          income: map[key]?.income || 0
+        });
+        curr.setDate(curr.getDate() + 1);
+      }
     } else {
       // day / all — только дни с данными, по возрастанию
       const keys = Object.keys(map).sort();

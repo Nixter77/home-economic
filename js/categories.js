@@ -26,11 +26,12 @@ function normalizeCategory(category) {
   const name = String(category.name || '').trim();
   if (!id || !name) return null;
 
+  const rawIcon = String(category.icon || '🏷️').replace(/<[^>]*>/g, '').trim();
   const color = String(category.color || '');
   return {
     id,
     name,
-    icon: String(category.icon || '🏷️'),
+    icon: rawIcon || '🏷️',
     color: /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : DEFAULT_COLOR,
     budgetLimit: Math.max(0, Number(category.budgetLimit) || 0)
   };
@@ -91,11 +92,13 @@ class CategoryManager {
   updateCategory(id, updatedData) {
     const index = this.categories.findIndex(c => c.id === id);
     if (index === -1) return false;
-    this.categories[index] = {
+    const merged = {
       ...this.categories[index],
-      ...updatedData,
-      budgetLimit: updatedData.budgetLimit !== undefined ? Number(updatedData.budgetLimit) : this.categories[index].budgetLimit
+      ...updatedData
     };
+    const normalized = normalizeCategory(merged);
+    if (!normalized) return false;
+    this.categories[index] = normalized;
     this.saveCategories();
     return true;
   }
