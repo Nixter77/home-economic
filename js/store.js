@@ -126,7 +126,20 @@ class Store {
 
   importData(data) {
     if (data && Array.isArray(data.transactions)) {
-      this.transactions = data.transactions;
+      // Coerce and validate each transaction to prevent NaN / type errors downstream
+      this.transactions = data.transactions
+        .filter(t => t && typeof t === 'object')
+        .map(t => ({
+          id: String(t.id || Date.now()),
+          amount: Math.max(0, Number(t.amount) || 0),
+          type: t.type === 'income' ? 'income' : 'expense',
+          category: String(t.category || 'other'),
+          tags: Array.isArray(t.tags) ? t.tags : [],
+          note: t.note ? String(t.note).trim() : '',
+          date: t.date || new Date().toISOString().split('T')[0],
+          createdAt: t.createdAt || new Date().toISOString()
+        }))
+        .filter(t => t.amount > 0); // skip zero-amount entries
       this.saveTransactions();
       return true;
     }

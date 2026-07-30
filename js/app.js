@@ -26,8 +26,12 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initApp() {
+  // Apply theme silently (without notify) to avoid triggering refreshCurrentView
+  // before router.start() has set currentRoute.
   const savedTheme = store.loadTheme();
-  store.setTheme(savedTheme);
+  store.theme = savedTheme;
+  document.documentElement.setAttribute('data-theme', savedTheme);
+  store.updateThemeToggleIcon();
 
   document.getElementById('theme-toggle-btn').addEventListener('click', () => {
     store.toggleTheme();
@@ -441,13 +445,18 @@ function initAnalyticsEvents() {
   });
 
   // Переключатель месяцев ◀ ▶
+  // Create new Date to avoid in-place mutation of shared reference.
   document.getElementById('analytics-prev-month').addEventListener('click', () => {
-    currentAnalyticsRefDate.setMonth(currentAnalyticsRefDate.getMonth() - 1);
+    const d = new Date(currentAnalyticsRefDate);
+    d.setMonth(d.getMonth() - 1);
+    currentAnalyticsRefDate = d;
     renderAnalyticsView();
   });
 
   document.getElementById('analytics-next-month').addEventListener('click', () => {
-    currentAnalyticsRefDate.setMonth(currentAnalyticsRefDate.getMonth() + 1);
+    const d = new Date(currentAnalyticsRefDate);
+    d.setMonth(d.getMonth() + 1);
+    currentAnalyticsRefDate = d;
     renderAnalyticsView();
   });
 
@@ -471,6 +480,8 @@ function renderCategoriesView() {
   categoryManager.getAll().forEach(cat => {
     const row = document.createElement('div');
     row.style.cssText = 'display: flex; align-items: center; justify-content: space-between; padding: 12px; background: var(--color-card-bg); border: 1px solid var(--color-surface-border); border-radius: var(--radius-md);';
+    // Validate color to prevent CSS injection (only allow #RRGGBB / #RGB and named safe values)
+    const safeColor = /^#[0-9a-fA-F]{3,8}$/.test(cat.color) ? cat.color : '#607D8B';
 
     const limitDisplay = cat.budgetLimit > 0 ? `${cat.budgetLimit} ₪` : 'Без лимита';
 
@@ -481,7 +492,7 @@ function renderCategoriesView() {
           <div style="font-weight: 600;">${escapeHTML(cat.name)}</div>
           <div style="font-size: 0.75rem; color: var(--color-text-muted);">Лимит: ${limitDisplay}</div>
         </div>
-        <span style="width: 12px; height: 12px; border-radius: 50%; background: ${cat.color}; margin-left: auto;"></span>
+        <span style="width: 12px; height: 12px; border-radius: 50%; background: ${safeColor}; margin-left: auto;"></span>
       </div>
       <div style="display: flex; gap: 4px; margin-left: 8px;">
         <button class="btn-icon edit-cat-limit-btn" data-id="${cat.id}" title="Изменить лимит">✏️</button>

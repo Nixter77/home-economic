@@ -4,17 +4,12 @@
  * При prefers-reduced-motion анимации графиков отключаются.
  */
 
-function chartAnimationConfig() {
-  const reduced = typeof window !== 'undefined'
-    && typeof window.matchMedia === 'function'
-    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+import { prefersReducedMotion } from './motion.js';
 
-  return reduced
+function chartAnimationConfig() {
+  return prefersReducedMotion()
     ? { duration: 0 }
-    : {
-        duration: 700,
-        easing: 'easeOutCubic'
-      };
+    : { duration: 700, easing: 'easeOutCubic' };
 }
 
 function getThemeColors() {
