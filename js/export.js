@@ -4,6 +4,7 @@
 
 import { store } from './store.js';
 import { categoryManager } from './categories.js';
+import { wageSettings } from './wage.js';
 
 export function exportDataToJSON() {
   const data = {
@@ -11,7 +12,8 @@ export function exportDataToJSON() {
     version: 1,
     exportedAt: new Date().toISOString(),
     transactions: store.getTransactions(),
-    categories: categoryManager.getAll()
+    categories: categoryManager.getAll(),
+    wage: wageSettings.get()
   };
 
   const jsonStr = JSON.stringify(data, null, 2);
@@ -50,6 +52,10 @@ export function importDataFromJSON(file) {
           parsed.categories.forEach(cat => {
             categoryManager.addCategory(cat);
           });
+        }
+
+        if (parsed.wage && typeof parsed.wage === 'object') {
+          wageSettings.replaceAll(parsed.wage);
         }
 
         resolve(true);

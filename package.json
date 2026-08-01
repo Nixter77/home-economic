@@ -1,0 +1,9 @@
+{
+  "name": "home-economic",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Household finance tracker with cross-device sync",
+  "dependencies": {
+    "@vercel/blob": "^2.6.1"
+  }
+}

@@ -25,13 +25,18 @@ export class TransactionController {
       return { success: false, message: 'Пожалуйста, укажите дату' };
     }
 
-    const tx = store.addTransaction({
+    const payload = {
       amount: amount,
       type: formData.type || 'expense',
       category: formData.category,
       note: formData.note || '',
       date: formData.date
-    });
+    };
+    if (formData.meta && typeof formData.meta === 'object') {
+      payload.meta = formData.meta;
+    }
+
+    const tx = store.addTransaction(payload);
 
     return { success: true, tx };
   }
@@ -48,13 +53,18 @@ export class TransactionController {
       return { success: false, message: 'Пожалуйста, введите корректную сумму > 0' };
     }
 
-    const updated = store.updateTransaction(id, {
+    const fields = {
       amount,
       type: formData.type || 'expense',
       category: formData.category,
       note: formData.note || '',
       date: formData.date
-    });
+    };
+    if (formData.meta !== undefined) {
+      fields.meta = formData.meta;
+    }
+
+    const updated = store.updateTransaction(id, fields);
 
     if (updated) {
       return { success: true };

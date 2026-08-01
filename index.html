@@ -1,10 +1,25 @@
 <!DOCTYPE html>
-<html lang="ru" data-theme="midnight">
+<html lang="ru" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Home Economic — Домашний Бюджет</title>
   <meta name="description" content="Удобный трекер домашнего бюджета в шекелях (₪) с категориями, графиками и аналитикой.">
+  <!-- Тема применяется до первой отрисовки, чтобы избежать вспышки -->
+  <script>
+    (function () {
+      var t = 'light';
+      try {
+        var saved = localStorage.getItem('he_theme');
+        if (saved === 'midnight' || saved === 'light') {
+          t = saved;
+        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          t = 'midnight';
+        }
+      } catch (e) {}
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
   <link rel="stylesheet" href="css/style.css">
   <!-- Google Fonts: Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -21,7 +36,10 @@
       <span class="brand-icon">💰</span>
       <span>Home Economic</span>
     </div>
-    <button id="theme-toggle-btn" class="theme-toggle" title="Переключить тему">🌙</button>
+    <div class="header-actions">
+      <span id="sync-status-badge" class="sync-badge" hidden title="Синхронизация">☁️</span>
+      <button id="theme-toggle-btn" class="theme-toggle" title="Переключить на тёмную тему">🌙</button>
+    </div>
   </header>
 
   <!-- Боковая / Нижняя навигация -->
@@ -71,9 +89,23 @@
           <div class="stat-change" id="dashboard-expense-change">--</div>
         </div>
         <div class="stat-card">
+          <div class="stat-label">Прогноз трат к концу месяца</div>
+          <div class="stat-value" id="dashboard-forecast-total" style="color: #F39C12;">0 ₪</div>
+          <div class="stat-change" id="dashboard-forecast-sub">Оценка на основе текущего темпа</div>
+        </div>
+        <div class="stat-card">
           <div class="stat-label">Доходы за период</div>
           <div class="stat-value" id="dashboard-total-income" style="color: #27AE60;">0 ₪</div>
         </div>
+      </div>
+
+      <!-- Кнопка расчёта зарплаты (появляется когда есть зарплата за месяц) -->
+      <div id="payslip-cta-container"></div>
+
+      <!-- Статус Бюджетов -->
+      <div class="card">
+        <div class="card-title">Состояние бюджетов по категориям</div>
+        <div id="dashboard-budget-progress-list" style="display: flex; flex-direction: column; gap: var(--space-sm);"></div>
       </div>
 
       <div class="card">
@@ -114,17 +146,46 @@
             </div>
           </div>
 
-          <!-- Поле суммы -->
-          <div class="form-group">
-            <label class="form-label" for="tx-amount">Сумма в шекелях (₪)</label>
-            <input type="number" id="tx-amount" class="form-control amount-input" placeholder="0" step="any" min="0.01" required autofocus>
-          </div>
-
           <!-- Категория -->
           <div class="form-group">
             <label class="form-label">Выберите категорию</label>
             <div class="category-grid" id="tx-category-grid"></div>
             <input type="hidden" id="tx-category" required>
+          </div>
+
+          <!-- Калькулятор зарплаты (только для дохода «Зарплата») -->
+          <div id="salary-calculator" class="income-panel" hidden>
+            <div class="form-label" style="margin-bottom: var(--space-sm);">Часы смены</div>
+            <p id="salary-hint" class="income-hint">
+              Обычное время — 40 ₪/ч. Шабатон (шаббат / праздник, 150%) — 60 ₪/ч.
+            </p>
+            <div class="hours-grid">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" for="tx-hours-regular">Обычные часы × <span id="rate-regular-label">40</span> ₪</label>
+                <input type="number" id="tx-hours-regular" class="form-control" placeholder="0" min="0" step="0.25" inputmode="decimal">
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" for="tx-hours-shabaton">Шабатон × <span id="rate-shabaton-label">60</span> ₪</label>
+                <input type="number" id="tx-hours-shabaton" class="form-control" placeholder="0" min="0" step="0.25" inputmode="decimal">
+              </div>
+            </div>
+            <div class="salary-total-row">
+              <span>Зарплата за смену</span>
+              <strong id="salary-calc-total">0 ₪</strong>
+            </div>
+            <div class="form-group" style="margin-top: var(--space-md); margin-bottom: 0;">
+              <label class="form-label" for="tx-tips-extra">Чаевые за смену (отдельная запись)</label>
+              <input type="number" id="tx-tips-extra" class="form-control" placeholder="0" min="0" step="any" inputmode="decimal">
+            </div>
+            <p id="shabaton-date-hint" class="income-hint" hidden style="margin-top: var(--space-sm);">
+              📅 Суббота — обычно шабатон (150%). Можно указать часы в «Шабатон».
+            </p>
+          </div>
+
+          <!-- Поле суммы -->
+          <div class="form-group" id="amount-group">
+            <label class="form-label" for="tx-amount" id="tx-amount-label">Сумма в шекелях (₪)</label>
+            <input type="number" id="tx-amount" class="form-control amount-input" placeholder="0" step="any" min="0.01" required autofocus>
           </div>
 
           <!-- Дата -->
@@ -172,11 +233,36 @@
 
     <!-- Экран: Аналитика -->
     <section id="view-analytics" class="view" style="display: none;">
-      <div class="chip-bar" id="analytics-period-selector">
-        <button class="chip-btn" data-period="day">Сутки</button>
-        <button class="chip-btn" data-period="week">Неделя</button>
-        <button class="chip-btn active" data-period="month">Месяц</button>
-        <button class="chip-btn" data-period="all">Всё время</button>
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-md);">
+        <div class="chip-bar" id="analytics-period-selector" style="margin-bottom: 0;">
+          <button class="chip-btn" data-period="day">Сутки</button>
+          <button class="chip-btn" data-period="week">Неделя</button>
+          <button class="chip-btn active" data-period="month">Месяц</button>
+          <button class="chip-btn" data-period="custom">Произвольно</button>
+          <button class="chip-btn" data-period="all">Всё время</button>
+        </div>
+
+        <!-- Навигация по месяца `‹ Июль 2026 ›` -->
+        <div id="analytics-month-nav" style="display: flex; align-items: center; gap: var(--space-sm); background: var(--color-card-bg); padding: 4px 12px; border-radius: var(--radius-pill); border: 1px solid var(--color-surface-border);">
+          <button id="analytics-prev-month" class="btn-icon">◀</button>
+          <span id="analytics-month-label" style="font-weight: 600; min-width: 110px; text-align: center;">Июль 2026</span>
+          <button id="analytics-next-month" class="btn-icon">▶</button>
+        </div>
+      </div>
+
+      <!-- Кастомный диапазон (От / До) -->
+      <div id="analytics-custom-range-box" class="card" style="display: none; padding: var(--space-md);">
+        <div style="display: flex; gap: var(--space-md); align-items: center;">
+          <div style="flex: 1;">
+            <label class="form-label">Дата "От"</label>
+            <input type="date" id="analytics-start-date" class="form-control">
+          </div>
+          <div style="flex: 1;">
+            <label class="form-label">Дата "До"</label>
+            <input type="date" id="analytics-end-date" class="form-control">
+          </div>
+          <button id="analytics-apply-custom-btn" class="btn btn-primary" style="margin-top: 20px;">Применить</button>
+        </div>
       </div>
 
       <div class="card">
@@ -209,9 +295,16 @@
       <div class="card">
         <div class="card-title">Добавить новую категорию</div>
         <form id="new-category-form">
-          <div style="display: grid; grid-template-columns: 70px 1fr 60px; gap: var(--space-sm);">
+          <div class="form-group">
+            <div class="chip-bar" style="width: 100%;">
+              <button type="button" class="chip-btn active" id="cat-kind-expense" data-kind="expense" style="flex: 1;">Расход</button>
+              <button type="button" class="chip-btn" id="cat-kind-income" data-kind="income" style="flex: 1;">Доход</button>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 60px 1fr 1fr 50px; gap: var(--space-sm);">
             <input type="text" id="cat-icon-input" class="form-control" placeholder="🍕" maxLength="2" required style="text-align: center;">
-            <input type="text" id="cat-name-input" class="form-control" placeholder="Название категории" required>
+            <input type="text" id="cat-name-input" class="form-control" placeholder="Название" required>
+            <input type="number" id="cat-limit-input" class="form-control" placeholder="Лимит ₪ (опц.)" min="0">
             <input type="color" id="cat-color-input" class="form-control" value="#FF6B35" style="padding: 4px; height: 100%;">
           </div>
           <button type="submit" class="btn btn-primary btn-block" style="margin-top: var(--space-md);">Добавить категорию</button>
@@ -224,14 +317,47 @@
       <div class="card">
         <div class="card-title">Внешний вид</div>
         <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span>Тема оформления (Midnight / Light)</span>
+          <span>Тема оформления (Light / Midnight)</span>
           <button id="settings-theme-toggle" class="btn btn-secondary">Сменить тему</button>
         </div>
       </div>
 
       <div class="card">
+        <div class="card-title">Ставки зарплаты</div>
+        <p style="font-size: 0.9rem; color: var(--color-text-muted); margin-bottom: var(--space-md);">
+          Обычные часы и шабатон (шаббат / праздники — 150% по израильскому трудовому праву).
+          Чаевые учитываются отдельно категорией «Чаевые».
+        </p>
+        <div class="hours-grid">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" for="settings-rate-regular">Обычный час (₪)</label>
+            <input type="number" id="settings-rate-regular" class="form-control" min="0" step="0.5" value="40">
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" for="settings-rate-shabaton">Шабатон 150% (₪)</label>
+            <input type="number" id="settings-rate-shabaton" class="form-control" min="0" step="0.5" value="60">
+          </div>
+        </div>
+        <button type="button" id="settings-wage-save" class="btn btn-primary btn-block" style="margin-top: var(--space-md);">Сохранить ставки</button>
+        <p id="settings-wage-status" style="font-size: 0.8rem; color: var(--color-text-muted); margin-top: var(--space-sm);"></p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Синхронизация (облако)</div>
+        <p style="font-size: 0.9rem; color: var(--color-text-muted); margin-bottom: var(--space-md);">
+          Покупки с телефона и компьютера автоматически в одном списке. Работает на Vercel без кодов — просто откройте сайт на обоих устройствах.
+        </p>
+        <p id="sync-status-text" style="font-size: 0.95rem; font-weight: 500; margin-bottom: 4px;">—</p>
+        <p id="sync-last-text" style="font-size: 0.8rem; color: var(--color-text-muted); margin-bottom: var(--space-md);"></p>
+        <div style="display: flex; gap: var(--space-md); flex-wrap: wrap;">
+          <button id="sync-force-btn" class="btn btn-secondary" style="flex: 1;">🔄 Синхронизировать сейчас</button>
+          <button id="sync-toggle-btn" class="btn btn-secondary" style="flex: 1;">Отключить синхронизацию</button>
+        </div>
+      </div>
+
+      <div class="card">
         <div class="card-title">Резервное копирование</div>
-        <p style="font-size: 0.9rem; color: var(--color-text-muted); margin-bottom: var(--space-md);">Все данные хранятся локально в вашем браузере. Сохраните копию JSON для переноса на другое устройство.</p>
+        <p style="font-size: 0.9rem; color: var(--color-text-muted); margin-bottom: var(--space-md);">Локальная копия JSON. Для телефона и компьютера удобнее включить синхронизацию выше.</p>
         <div style="display: flex; gap: var(--space-md);">
           <button id="export-json-btn" class="btn btn-primary" style="flex: 1;">📥 Скачать бэкап</button>
           <label class="btn btn-secondary" style="flex: 1; text-align: center; cursor: pointer;">
@@ -250,6 +376,23 @@
 
   </main>
 
+  <!-- Модальное окно: Расчёт налогов (Payslip) -->
+  <div class="payslip-overlay" id="payslip-overlay">
+    <div class="payslip-modal" id="payslip-modal">
+      <div class="payslip-header">
+        <div>
+          <h2>📋 Расчётный лист</h2>
+          <span class="tax-year-badge" id="payslip-tax-year">2024-2025</span>
+        </div>
+        <button class="payslip-close" id="payslip-close-btn" title="Закрыть">✕</button>
+      </div>
+      <div class="payslip-body" id="payslip-body">
+        <!-- Заполняется динамически из JS -->
+      </div>
+    </div>
+  </div>
+
   <script type="module" src="js/app.js"></script>
+
 </body>
 </html>

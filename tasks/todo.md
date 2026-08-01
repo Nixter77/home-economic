@@ -1,43 +1,27 @@
-# План реализации — Home Economic
+# TODO
 
-## Фаза 1: Фундамент приложения
-- [x] `index.html` — Базовый SPA-каркас и структура экранов
-- [x] `css/style.css` — Стилизация по DESIGN.md (Flash design system + Midnight theme, переменные, компоненты)
-- [x] `js/utils.js` — Вспомогательные функции (форматирование ₪, дат, генерация UUID)
-- [x] `js/store.js` — Модуль хранения (localStorage CRUD, события изменений)
-- [x] `js/categories.js` — Управление категориями (предустановленные + кастомные)
-- [x] `js/router.js` — Hash-роутер для переключения экранов
-- [x] `js/app.js` — Точка входа приложения
+## Completed
+- [x] Basic transaction tracking
+- [x] Category management
+- [x] Wage card with hourly rate
+- [x] Monthly navigation
+- [x] Analytics with charts
+- [x] Calendar view
+- [x] Data sync
+- [x] Export to CSV
+- [x] Motion/animation system
+- [x] Bottom sheet for quick add
 
-## Фаза 2: Ввод данных и история
-- [x] `js/transactions.js` — Логика добавления и редактирования транзакций
-- [x] Экран `#add` — UI формы добавления (быстрый выбор категорий, сумма)
-- [x] Экран `#history` — UI истории (фильтрация по датам/категориям, редактирование/удаление)
+## Current: Israeli Tax / Payslip Calculator ✅
+- [x] Create `js/tax-il.js` — Israeli tax engine (income tax brackets, bituach leumi, health insurance, pension, credit points)
+- [x] Add payslip modal HTML to `index.html`
+- [x] Add payslip CTA button to dashboard (visible when salary income exists for current month)
+- [x] Add CSS for payslip modal (`.payslip-*` classes)
+- [x] Wire button + modal logic in `app.js`
+- [x] Verify the calculator with test salaries (7K, 10K, 15K NIS)
 
-## Фаза 3: Аналитика и графики
-- [x] `js/analytics.js` — Агрегации (сутки, неделя, месяц, всё время, категории)
-- [x] `js/charts.js` — Интеграция Chart.js (Pie, Bar, Line)
-- [x] Экран `#dashboard` — Сводный экран с ключевыми показателями и базовыми графиками
-- [x] Экран `#analytics` — Детальная аналитика и сравнение месяцев
-
-## Фаза 4: Управление и настройки
-- [x] `js/export.js` — Экспорт и импорт данных JSON
-- [x] Экран `#categories` — UI управления категориями
-- [x] Экран `#settings` — Переключение тем, бэкап, сброс данных
-
-## Проверка и верификация
-- [x] Создание всех файлов и проверка структуры модулей ES6
-
----
-
-## Review
-
-### Выполненная работа
-1. **Базовый каркас приложения (`index.html`)**: SPA структура с 6 экранами (`#dashboard`, `#add`, `#history`, `#analytics`, `#categories`, `#settings`), адаптивной навигацией и подключением Chart.js.
-2. **Дизайн-система (`css/style.css`)**: Реализована система стилей на основе `DESIGN.md` (Flash design system) с двумя темами (Midnight по умолчанию / Light), переменными CSS, адаптивной сеткой и стеклянными элементами (glassmorphism).
-3. **Хранилище и утилиты (`js/store.js`, `js/utils.js`)**: Полноценный реактивный слой поверх `localStorage` для транзакций и настроек, поддержка форматирования шекелей (`₪`), форматирование дат и защита от XSS.
-4. **Категории (`js/categories.js`)**: Предустановленные категории с иконками/emoji (еда 🍕, алкоголь 🍷, фрукты-овощи 🥦, мясо 🥩 и др.), с возможностью создания/удаления кастомных.
-5. **Операции и история (`js/transactions.js`)**: Полный CRUD транзакций, фильтрация по типу/категории/поиску, быстрая форма добавления и редактирования.
-6. **Аналитика и Графики (`js/analytics.js`, `js/charts.js`)**: Расчёт агрегатов за сутки, неделю, месяц и всё время; кольцевая диаграмма категорий (Pie Chart), столбчатая диаграмма (Bar Chart) и график тренда (Line Chart).
-7. **Экспорт и импорт (`js/export.js`)**: Выгрузка бэкапа в `.json` файл и восстановление из файла.
-8. **Готовность к Vercel (`vercel.json`, `.gitignore`)**: Настроена конфигурация статической сборки, перенаправления SPA и оптимизированное кэширование ресурсов на Vercel CDN.
+## Backlog
+- [ ] Budget goals per category
+- [ ] Recurring transactions
+- [ ] Multi-currency support
+- [ ] Data backup/restore

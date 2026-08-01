@@ -86,6 +86,117 @@ export function formatDateShort(dateInput) {
 }
 
 /**
+ * Безопасное вычисление математического выражения (например "50 + 30.5 * 2")
+ * @param {string} expr 
+ * @returns {number|null}
+ */
+export function evaluateMathExpression(expr) {
+  if (typeof expr !== 'string') return null;
+
+  const cleanExpr = expr.replace(/,/g, '.').trim();
+  if (!cleanExpr) return null;
+
+  const tokens = cleanExpr.match(/\d+(?:\.\d+)?|[+\-*/()]/g);
+  if (!tokens || tokens.join('') !== cleanExpr.replace(/\s+/g, '')) {
+    return null;
+  }
+
+  let index = 0;
+
+  function parsePrimary() {
+    const token = tokens[index];
+    if (!token) return null;
+
+    if (token === '(') {
+      index++;
+      const val = parseExpression();
+      if (tokens[index] !== ')') return null;
+      index++;
+      return val;
+    }
+
+    if (token === '-') {
+      index++;
+      const val = parsePrimary();
+      return val !== null ? -val : null;
+    }
+
+    const num = parseFloat(token);
+    if (isNaN(num)) return null;
+    index++;
+    return num;
+  }
+
+  function parseTerm() {
+    let left = parsePrimary();
+    if (left === null) return null;
+
+    while (index < tokens.length && (tokens[index] === '*' || tokens[index] === '/')) {
+      const operator = tokens[index++];
+      const right = parsePrimary();
+      if (right === null) return null;
+
+      if (operator === '*') {
+        left *= right;
+      } else if (operator === '/') {
+        if (right === 0) return null;
+        left /= right;
+      }
+    }
+    return left;
+  }
+
+  function parseExpression() {
+    let left = parseTerm();
+    if (left === null) return null;
+
+    while (index < tokens.length && (tokens[index] === '+' || tokens[index] === '-')) {
+      const operator = tokens[index++];
+      const right = parseTerm();
+      if (right === null) return null;
+
+      if (operator === '+') {
+        left += right;
+      } else if (operator === '-') {
+        left -= right;
+      }
+    }
+    return left;
+  }
+
+  try {
+    const result = parseExpression();
+    if (index !== tokens.length || result === null || !isFinite(result)) {
+      return null;
+    }
+    return Math.max(0, result);
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Извлекает хештеги из текста заметок (например "#супермаркет #праздник")
+ * @param {string} text 
+ * @returns {string[]}
+ */
+export function extractHashtags(text) {
+  if (typeof text !== 'string') return [];
+  const matches = text.match(/#[a-zA-Z0-9а-яА-ЯёЁ_]+/g);
+  return matches ? Array.from(new Set(matches.map(t => t.toLowerCase()))) : [];
+}
+
+/**
+ * Возвращает количество дней в месяце
+ * @param {number} year 
+ * @param {number} monthIndex (0-11)
+ * @returns {number}
+ */
+export function getDaysInMonth(year, monthIndex) {
+  return new Date(year, monthIndex + 1, 0).getDate();
+}
+
+/**
  * Безопасное экранирование HTML для предотвращения XSS
  * @param {string} str 
  * @returns {string}

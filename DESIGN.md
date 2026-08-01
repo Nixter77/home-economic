@@ -55,6 +55,7 @@ rounded:
   md: 8px
   lg: 16px
   xl: 24px
+  card: 20px
   pill: 980px
 spacing:
   xs: 4px
@@ -62,6 +63,13 @@ spacing:
   md: 16px
   lg: 24px
   xl: 32px
+elevation:
+  shadow-sm: "0 1px 2px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.04)"
+  shadow-md: "0 2px 6px rgba(0, 0, 0, 0.05), 0 10px 24px rgba(0, 0, 0, 0.06)"
+  shadow-lg: "0 4px 12px rgba(0, 0, 0, 0.06), 0 20px 44px rgba(0, 0, 0, 0.08)"
+  shadow-xl: "0 8px 20px rgba(0, 0, 0, 0.08), 0 32px 64px rgba(0, 0, 0, 0.10)"
+  shadow-accent: "0 4px 14px rgba(0, 113, 227, 0.28)"
+  midnight-shadow-md: "0 2px 6px rgba(0, 0, 0, 0.35), 0 12px 28px rgba(0, 0, 0, 0.4)"
 components:
   layout:
     backgroundColor: "{colors.bone}"
@@ -132,6 +140,27 @@ components:
   globe-meridian:
     backgroundColor: "{colors.globe-meridian}"
     textColor: "{colors.globe-border}"
+  motion-curve-spring:
+    backgroundColor: "{colors.bone}"
+    textColor: "cubic-bezier(0.34, 1.3, 0.64, 1)"
+  motion-curve-standard:
+    backgroundColor: "{colors.bone}"
+    textColor: "cubic-bezier(0.4, 0, 0.2, 1)"
+  motion-curve-decelerate:
+    backgroundColor: "{colors.bone}"
+    textColor: "cubic-bezier(0, 0, 0.2, 1)"
+  motion-duration-fast:
+    backgroundColor: "{colors.bone}"
+    textColor: "120ms"
+  motion-duration-normal:
+    backgroundColor: "{colors.bone}"
+    textColor: "220ms"
+  motion-duration-slow:
+    backgroundColor: "{colors.bone}"
+    textColor: "380ms"
+  motion-stagger-item:
+    backgroundColor: "{colors.bone}"
+    textColor: "40ms"
 ---
 
 ## Overview
@@ -181,10 +210,19 @@ Invisible grid: clarity and breathability through strict hierarchy.
 
 ## Elevation & Depth
 
-- **Glass cards** are the primary container: translucent surface, subtle border, soft resting shadow; deeper shadow on hover.
-- Prefer blur + border over heavy drop shadows.
+- **Light theme (default)** uses layered, moderately volumetric shadows: a tight ambient layer plus a wide diffuse key layer (`elevation.shadow-sm` … `shadow-xl`). Cards rest at `shadow-md` and lift to `shadow-lg` on hover — the lift reads as physical, never jumpy.
+- Glass cards remain the primary container: translucent surface, subtle border, soft resting shadow.
+- Prefer blur + border over heavy drop shadows; keep shadow transitions on `box-shadow`/`opacity` with short durations only (never animate `top/left`).
 - Modal backdrop: `rgba(0,0,0,0.45)` + ~12px backdrop blur; dim and blur share a short ease-out (~0.2s).
-- Midnight surfaces use translucent dark glass (`midnight-surface`) on near-black ground.
+- Midnight surfaces use translucent dark glass (`midnight-surface`) on near-black ground with `midnight-shadow-md`.
+
+## Motion
+
+- **Curves:** spring-like ease-out `motion-curve-spring` (cubic-bezier(0.34, 1.3, 0.64, 1)) for entrances and hover lifts; `motion-curve-standard` for color/state fades; `motion-curve-decelerate` for view transitions.
+- **Durations:** micro `motion-duration-fast` (120ms), standard `motion-duration-normal` (220ms), view/large `motion-duration-slow` (380ms). Stagger list items at `motion-stagger-item` (40ms) intervals, capped so long lists never delay more than ~300ms total.
+- **Hot path:** animate only `transform` and `opacity`. Color, border and shadow changes use short standard-ease transitions.
+- **Reduced motion:** honor `prefers-reduced-motion` — disable springs, stagger, ripple and view transitions; keep instant state changes.
+- **Micro-interactions:** buttons compress slightly on press (`scale(0.97)`), cards lift `translateY(-2px)` on hover, ripple on primary buttons is allowed when implemented with a single composited pseudo-element.
 
 ## Shapes
 
@@ -192,8 +230,9 @@ Invisible grid: clarity and breathability through strict hierarchy.
 |-------|-------|-------------|
 | `sm` | 4px | Dense controls, chips |
 | `md` | 8px | Inputs, small panels |
-| `lg` | 16px | Cards |
+| `lg` | 16px | Small panels |
 | `xl` | 24px | Large panels |
+| `card` | 20px | Content cards (default card radius) |
 | `pill` | 980px | Primary buttons only |
 
 Cards stay geometric (`lg`/`xl`). Primary actions use **pill** rounding so they read as interactive, not structural.
@@ -208,8 +247,8 @@ Cards stay geometric (`lg`/`xl`). Primary actions use **pill** rounding so they 
 ### Glass card
 
 - Primary content container.
-- Background `{colors.surface-glass}`, radius `{rounded.lg}`, padding `{spacing.lg}`.
-- Hover may lift shadow; keep motion on transform/opacity when possible.
+- Background `{colors.surface-glass}`, radius `{rounded.card}` (20px), padding `{spacing.lg}`.
+- Resting shadow `{elevation.shadow-md}`; hover lifts to `{elevation.shadow-lg}` with `translateY(-2px)` on the spring curve.
 
 ### Button (primary)
 
