@@ -20,8 +20,21 @@
 - [x] Wire button + modal logic in `app.js`
 - [x] Verify the calculator with test salaries (7K, 10K, 15K NIS)
 
-## Backlog
-- [ ] Budget goals per category
-- [ ] Recurring transactions
-- [ ] Multi-currency support
-- [ ] Data backup/restore
+## Current: Date Month-End Overflow Bug Fix 🐛
+- [x] Identify root cause of month comparison / navigation date overflow on 31st (setMonth overflow)
+- [x] Fix `getComparisonWithPrevious` in `js/analytics.js` (`setDate(1)` before `setMonth(-1)`)
+- [x] Fix month navigation listeners in `js/app.js` (`setDate(1)` before `setMonth`)
+- [x] Run syntax checks and verification tests
+
+## Current: Git History Cleanup 🧹
+- [ ] Create backup branch `backup-main-history`
+- [ ] Rebuild Git history with only first commit + last 2 commits
+- [ ] Verify zero code diff against backup branch
+- [ ] Force push clean `main` branch to GitHub (`origin/main`)
+- [ ] Clean up temporary backup/work branches
+
+## Review
+- **Issue**: `setMonth(prevDate.getMonth() - 1)` on month-end dates (e.g. May 31) caused JavaScript `Date` to overflow into the current month (May 1 instead of April 30), resulting in zero percentage change calculation and broken month navigation.
+- **Fix**: Reset day of month to `1` (`setDate(1)`) before performing `setMonth(+/- 1)`.
+- **Verification**: Verified using Node syntax check (`node --input-type=module --check`) across all JS files and executed automated date boundary test script for all 12 month-end edge cases.
+

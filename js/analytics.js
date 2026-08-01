@@ -356,6 +356,7 @@ export function getComparisonWithPrevious(period = 'month') {
   } else if (period === 'week') {
     prevDate.setDate(prevDate.getDate() - 7);
   } else if (period === 'month') {
+    prevDate.setDate(1);
     prevDate.setMonth(prevDate.getMonth() - 1);
   }
 

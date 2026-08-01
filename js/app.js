@@ -693,6 +693,7 @@ function initAnalyticsEvents() {
   // Create new Date to avoid in-place mutation of shared reference.
   document.getElementById('analytics-prev-month').addEventListener('click', () => {
     const d = new Date(currentAnalyticsRefDate);
+    d.setDate(1);
     d.setMonth(d.getMonth() - 1);
     currentAnalyticsRefDate = d;
     ['analytics-pie-chart', 'analytics-line-chart'].forEach(id => chartManager.destroyChart(id));
@@ -701,6 +702,7 @@ function initAnalyticsEvents() {
 
   document.getElementById('analytics-next-month').addEventListener('click', () => {
     const d = new Date(currentAnalyticsRefDate);
+    d.setDate(1);
     d.setMonth(d.getMonth() + 1);
     currentAnalyticsRefDate = d;
     ['analytics-pie-chart', 'analytics-line-chart'].forEach(id => chartManager.destroyChart(id));
