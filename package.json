@@ -4,6 +4,6 @@
   "version": "1.0.0",
   "description": "Household finance tracker with cross-device sync",
   "dependencies": {
-    "@vercel/blob": "^2.6.1"
+    "@vercel/blob": "^2.8.0"
   }
 }

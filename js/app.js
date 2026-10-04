@@ -12,7 +12,7 @@ import { chartManager } from './charts.js';
 import { exportDataToJSON, importDataFromJSON } from './export.js';
 import { formatCurrency, formatDateHuman, formatDateISO, escapeHTML, evaluateMathExpression, extractHashtags } from './utils.js';
 import { initRipples, countUp, staggerChildren, playViewEnter, animateProgressBars } from './motion.js';
-import { syncManager } from './sync.js';
+import { syncManager, generateHouseholdCode } from './sync.js';
 import { wageSettings, isLikelyShabatonDate } from './wage.js';
 import { calculatePayslip, TAX_YEAR, formatILS } from './tax-il.js';
 
@@ -70,7 +70,7 @@ function initApp() {
   initSettingsEvents();
   initSyncUi();
 
-  // Cloud sync is always-on (shared room on Vercel) — phone + desktop same data
+  // Cloud sync (requires sync key + room code entered in Settings)
   syncManager.init();
   updateSyncUi(syncManager.getState());
 
@@ -916,6 +916,33 @@ function initSyncUi() {
     });
   }
 
+  const setupForm = document.getElementById('sync-setup-form');
+  const keyInput = document.getElementById('sync-key-input');
+  const roomInput = document.getElementById('sync-room-input');
+  const generateBtn = document.getElementById('sync-room-generate');
+  if (generateBtn && roomInput) {
+    generateBtn.addEventListener('click', () => {
+      roomInput.value = generateHouseholdCode();
+    });
+  }
+  if (setupForm && keyInput && roomInput) {
+    setupForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      // Keep the stored key if the field is left empty
+      const key = keyInput.value.trim() || syncManager.syncKey;
+      const ok = await syncManager.configure(key, roomInput.value);
+      if (!ok) {
+        alert('Укажите ключ синхронизации и код комнаты в формате HE-XXXX-XXXX');
+        return;
+      }
+      keyInput.value = '';
+      keyInput.placeholder = '•••••••• (сохранён)';
+      roomInput.value = syncManager.room;
+      updateSyncUi(syncManager.getState());
+      refreshCurrentView();
+    });
+  }
+
   const forceBtn = document.getElementById('sync-force-btn');
   if (forceBtn) {
     forceBtn.addEventListener('click', async () => {
@@ -937,6 +964,7 @@ function syncStatusLabel(state) {
     case 'synced': return 'Облако подключено — телефон и web в одном списке';
     case 'syncing': return 'Отправка изменений…';
     case 'connecting': return 'Подключение к облаку…';
+    case 'needs_setup': return 'Введите ключ синхронизации и код комнаты';
     case 'offline': return 'Нет сети — изменения сохранятся локально';
     case 'error': return state.lastError ? `Ошибка: ${state.lastError}` : 'Ошибка синхронизации';
     case 'idle':
@@ -959,13 +987,17 @@ function updateSyncUi(state) {
       badge.textContent =
         state.status === 'synced' ? '☁️' :
         state.status === 'syncing' || state.status === 'connecting' ? '🔄' :
-        state.status === 'error' || state.status === 'offline' ? '⚠️' : '☁️';
+        state.status === 'error' || state.status === 'offline' || state.status === 'needs_setup' ? '⚠️' : '☁️';
     } else {
       badge.hidden = true;
     }
   }
 
   if (statusEl) statusEl.textContent = syncStatusLabel(state);
+  const roomInput = document.getElementById('sync-room-input');
+  if (roomInput && !roomInput.value && state.room) roomInput.value = state.room;
+  const keyInput = document.getElementById('sync-key-input');
+  if (keyInput) keyInput.placeholder = state.configured ? '•••••••• (сохранён)' : 'SYNC_SECRET';
   if (toggleBtn) {
     toggleBtn.textContent = state.enabled ? 'Отключить синхронизацию' : 'Включить синхронизацию';
     toggleBtn.className = state.enabled ? 'btn btn-secondary' : 'btn btn-primary btn-block';
