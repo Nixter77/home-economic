@@ -1,21 +1,25 @@
 /**
- * Cross-device cloud sync — always on for this personal app.
+ * Cross-device cloud sync for this personal app.
  *
- * Uses shared room "main" on /api/sync so phone + desktop share one cloud store
- * without pairing codes. LocalStorage remains a cache; cloud is source of truth
- * for multi-device (merged with local on conflict).
+ * Requires a sync key (server env SYNC_SECRET) and an explicit room code, both
+ * entered once per device and kept in localStorage. The key is sent as the
+ * X-Sync-Key header on every /api/sync request. LocalStorage remains a cache;
+ * cloud is source of truth for multi-device (merged with local on conflict).
  */
 
 import { store } from './store.js';
 import { categoryManager } from './categories.js';
 import { wageSettings } from './wage.js';
 
-const SYNC_ROOM = 'main';
+const SYNC_KEY_STORAGE = 'he_sync_key';
+const SYNC_ROOM_STORAGE = 'he_sync_room';
+const ROOM_RE = /^HE-[A-Z2-9]{4}-[A-Z2-9]{4}$/;
+const LEGACY_ROOM = 'main';
 const SYNC_ETAG_KEY = 'he_sync_etag';
 const SYNC_DELETED_KEY = 'he_sync_deleted_ids';
 const SYNC_ENABLED_KEY = 'he_sync_enabled'; // '0' to opt out
 const SYNC_SCHEMA_KEY = 'he_sync_schema';
-const SYNC_SCHEMA_VERSION = '2'; // bump clears stale etags from code-based sync
+const SYNC_SCHEMA_VERSION = '3'; // bump clears stale etags (room is now explicit)
 const POLL_MS = 2000;
 const PUSH_DEBOUNCE_MS = 300;
 const MAX_DELETED_IDS = 500;
@@ -170,7 +174,8 @@ function applyPayload(payload, { silent = false } = {}) {
 
 class SyncManager {
   constructor() {
-    this.room = SYNC_ROOM;
+    this.room = null;
+    this.syncKey = '';
     this.etag = null;
     this.enabled = true;
     this.status = 'idle';
@@ -205,6 +210,8 @@ class SyncManager {
       const optOut = localStorage.getItem(SYNC_ENABLED_KEY) === '0';
       this.enabled = !optOut;
       this.etag = localStorage.getItem(SYNC_ETAG_KEY) || null;
+      this.syncKey = localStorage.getItem(SYNC_KEY_STORAGE) || '';
+      this.room = normalizeHouseholdCode(localStorage.getItem(SYNC_ROOM_STORAGE));
     } catch {
       this.enabled = true;
       this.etag = null;
@@ -238,14 +245,69 @@ class SyncManager {
       window.addEventListener('online', this.boundOnOnline);
     }
 
-    if (this.enabled) {
+    if (this.enabled && this.isConfigured()) {
       this.setStatus('connecting');
       this.startPolling();
       // Initial: pull cloud, merge local, push if needed
       this.queuePull().then(() => this.schedulePush());
+    } else if (this.enabled) {
+      this.setStatus('needs_setup');
     } else {
       this.setStatus('idle');
     }
+  }
+
+  isConfigured() {
+    return Boolean(this.syncKey && this.room);
+  }
+
+  /**
+   * Save sync key + room code for this device and (re)start sync.
+   * @returns {Promise<boolean>} false if the room code is invalid or key empty
+   */
+  async configure(syncKey, room) {
+    const key = typeof syncKey === 'string' ? syncKey.trim() : '';
+    const code = normalizeHouseholdCode(room);
+    if (!key || !code) return false;
+
+    if (code !== this.room) this.setEtag(null);
+    this.syncKey = key;
+    this.room = code;
+    try {
+      localStorage.setItem(SYNC_KEY_STORAGE, key);
+      localStorage.setItem(SYNC_ROOM_STORAGE, code);
+    } catch { /* ignore */ }
+
+    await this.enable();
+    return true;
+  }
+
+  /** Forget the sync key on this device (room code is kept). */
+  clearKey() {
+    this.syncKey = '';
+    try {
+      localStorage.removeItem(SYNC_KEY_STORAGE);
+    } catch { /* ignore */ }
+    this.stopPolling();
+    this.setStatus(this.enabled ? 'needs_setup' : 'idle');
+  }
+
+  authHeaders() {
+    return this.syncKey ? { 'X-Sync-Key': this.syncKey } : {};
+  }
+
+  /** Stop retrying on auth/config errors until the user re-enters the key. */
+  handleAuthError(status) {
+    if (status !== 401 && status !== 403 && status !== 503) return false;
+    this.stopPolling();
+    this.pendingPull = false;
+    this.pendingPush = false;
+    const message =
+      status === 401 ? 'неверный ключ синхронизации' :
+      status === 403 ? 'запрос с чужого домена отклонён' :
+      'синхронизация не настроена на сервере (SYNC_SECRET)';
+    this.setStatus('error', message);
+    return true;
   }
 
   subscribe(listener) {
@@ -270,6 +332,7 @@ class SyncManager {
     return {
       code: this.room,
       room: this.room,
+      configured: this.isConfigured(),
       status: this.status,
       lastError: this.lastError,
       lastSyncedAt: this.lastSyncedAt,
@@ -296,6 +359,10 @@ class SyncManager {
       localStorage.setItem(SYNC_ENABLED_KEY, '1');
     } catch { /* ignore */ }
     this.enabled = true;
+    if (!this.isConfigured()) {
+      this.setStatus('needs_setup');
+      return Promise.resolve();
+    }
     this.setStatus('connecting');
     this.startPolling();
     return this.queuePull().then(() => this.schedulePush());
@@ -324,7 +391,7 @@ class SyncManager {
 
   startPolling() {
     this.stopPolling();
-    if (!this.enabled) return;
+    if (!this.enabled || !this.isConfigured()) return;
     this.pollTimer = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
@@ -345,13 +412,13 @@ class SyncManager {
 
   onVisibility() {
     if (typeof document === 'undefined') return;
-    if (!document.hidden && this.enabled) {
+    if (!document.hidden && this.enabled && this.isConfigured()) {
       this.queuePull().then(() => this.schedulePush());
     }
   }
 
   schedulePush() {
-    if (!this.enabled) return;
+    if (!this.enabled || !this.isConfigured()) return;
     if (this.applyingRemote) return;
     this.pendingPush = true;
     if (this.pushTimer) clearTimeout(this.pushTimer);
@@ -362,13 +429,13 @@ class SyncManager {
   }
 
   async queuePull() {
-    if (!this.enabled) return;
+    if (!this.enabled || !this.isConfigured()) return;
     this.pendingPull = true;
     return this.drain();
   }
 
   async queuePush() {
-    if (!this.enabled) return;
+    if (!this.enabled || !this.isConfigured()) return;
     this.pendingPush = true;
     return this.drain();
   }
@@ -401,7 +468,7 @@ class SyncManager {
 
   async fetchRemote() {
     const params = new URLSearchParams({ code: this.room });
-    const headers = {};
+    const headers = { ...this.authHeaders() };
     if (this.etag) headers['If-None-Match'] = this.etag;
 
     const res = await fetch(`/api/sync?${params.toString()}`, {
@@ -487,6 +554,7 @@ class SyncManager {
       }
     } catch (err) {
       console.error('[sync] pull failed', err);
+      if (this.handleAuthError(err.status)) return;
       this.setStatus('error', err.message || String(err));
     }
   }
@@ -509,6 +577,7 @@ class SyncManager {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          ...this.authHeaders(),
           ...(this.etag ? { 'If-Match': this.etag } : {})
         },
         body: JSON.stringify({
@@ -532,7 +601,7 @@ class SyncManager {
 
         const retry = await fetch('/api/sync', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
           body: JSON.stringify({
             code: this.room,
             payload: merged,
@@ -541,7 +610,9 @@ class SyncManager {
         });
         const retryData = await retry.json().catch(() => ({}));
         if (!retry.ok) {
-          throw new Error(retryData.error || `HTTP ${retry.status}`);
+          const retryErr = new Error(retryData.error || `HTTP ${retry.status}`);
+          retryErr.status = retry.status;
+          throw retryErr;
         }
         this.setEtag(retryData.etag || null);
         this.lastSyncedAt = retryData.updatedAt || new Date().toISOString();
@@ -550,7 +621,9 @@ class SyncManager {
       }
 
       if (!res.ok) {
-        throw new Error(data.error || `HTTP ${res.status}`);
+        const pushErr = new Error(data.error || `HTTP ${res.status}`);
+        pushErr.status = res.status;
+        throw pushErr;
       }
 
       this.setEtag(data.etag || null);
@@ -558,6 +631,7 @@ class SyncManager {
       this.setStatus('synced');
     } catch (err) {
       console.error('[sync] push failed', err);
+      if (this.handleAuthError(err.status)) return;
       this.setStatus('error', err.message || String(err));
     }
   }
@@ -565,14 +639,22 @@ class SyncManager {
 
 export const syncManager = new SyncManager();
 
-// Back-compat exports used by older UI
+/** Random room code in the server format HE-XXXX-XXXX. */
 export function generateHouseholdCode() {
-  return SYNC_ROOM;
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  const chars = [...bytes].map((b) => alphabet[b % alphabet.length]);
+  return `HE-${chars.slice(0, 4).join('')}-${chars.slice(4).join('')}`;
 }
 
+/** Returns a valid room code (or the legacy "main" room) or null. */
 export function normalizeHouseholdCode(raw) {
-  if (raw == null || raw === '' || raw === 'main' || raw === 'default') return SYNC_ROOM;
-  return String(raw).trim() || SYNC_ROOM;
+  if (typeof raw !== 'string' || raw.trim() === '') return null;
+  const trimmed = raw.trim();
+  if (trimmed.toLowerCase() === LEGACY_ROOM) return LEGACY_ROOM;
+  const code = trimmed.toUpperCase();
+  return ROOM_RE.test(code) ? code : null;
 }
 
 export function householdShareUrl() {

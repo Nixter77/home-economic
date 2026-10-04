@@ -1,17 +1,21 @@
 /**
- * Cloud sync API — single shared household by default (personal app).
+ * Cloud sync API (personal app).
  *
- * GET  /api/sync
- * PUT  /api/sync  body: { payload, baseEtag? }
+ * GET  /api/sync?code=<room>
+ * PUT  /api/sync  body: { code, payload, baseEtag? }
  *
- * Optional multi-room: ?code=HE-XXXX-XXXX or body.code
- * Default room id: "main" (all devices on this deployment share it).
+ * Auth: every request must send header `X-Sync-Key` equal to env SYNC_SECRET.
+ * Fails closed (503) when SYNC_SECRET is not configured.
+ * Room: an explicit room id is required (HE-XXXX-XXXX, or the legacy "main"
+ * room when passed explicitly). There is no default room.
+ * CORS: same-origin only; override with env ALLOWED_ORIGIN (comma-separated).
  */
 
+const crypto = require('crypto');
 const { put, get, BlobPreconditionFailedError } = require('@vercel/blob');
 
 const CODE_RE = /^HE-[A-Z2-9]{4}-[A-Z2-9]{4}$/;
-const DEFAULT_ROOM = 'main';
+const LEGACY_ROOM = 'main';
 const PATH_PREFIX = 'households/';
 const MAX_BODY_BYTES = 1_500_000;
 
@@ -25,11 +29,63 @@ function blobToken() {
   return token;
 }
 
-function cors(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+function firstHeader(value) {
+  if (Array.isArray(value)) return value[0];
+  return typeof value === 'string' ? value.split(',')[0].trim() : '';
+}
+
+function allowedOrigins() {
+  return (process.env.ALLOWED_ORIGIN || '')
+    .split(',')
+    .map((o) => o.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+}
+
+/**
+ * Same-origin by default: the Origin's host must match the request host.
+ * If ALLOWED_ORIGIN is set, only those exact origins are accepted.
+ */
+function isOriginAllowed(req, origin) {
+  const configured = allowedOrigins();
+  if (configured.length > 0) {
+    return configured.includes(origin.replace(/\/+$/, ''));
+  }
+  const host = firstHeader(req.headers['x-forwarded-host']) || firstHeader(req.headers.host);
+  if (!host) return false;
+  try {
+    return new URL(origin).host === host;
+  } catch {
+    return false;
+  }
+}
+
+/** Returns false if the request comes from a disallowed cross-origin page. */
+function cors(req, res) {
+  res.setHeader('Vary', 'Origin');
+  const origin = typeof req.headers.origin === 'string' ? req.headers.origin : '';
+  if (!origin) return true; // non-browser or same-origin GET without Origin header
+  if (!isOriginAllowed(req, origin)) return false;
+  res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, If-None-Match, If-Match');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, If-None-Match, If-Match, X-Sync-Key');
   res.setHeader('Access-Control-Expose-Headers', 'ETag, X-Sync-ETag');
+  return true;
+}
+
+function safeEqual(a, b) {
+  // Hash both sides so the comparison is constant-time regardless of length.
+  const ha = crypto.createHash('sha256').update(String(a)).digest();
+  const hb = crypto.createHash('sha256').update(String(b)).digest();
+  return crypto.timingSafeEqual(ha, hb);
+}
+
+/** Returns null if authorized, otherwise [status, errorCode]. */
+function checkAuth(req) {
+  const secret = process.env.SYNC_SECRET;
+  if (!secret) return [503, 'sync_not_configured'];
+  const provided = firstHeader(req.headers['x-sync-key']);
+  if (!provided || !safeEqual(provided, secret)) return [401, 'unauthorized'];
+  return null;
 }
 
 function json(res, status, body, extraHeaders = {}) {
@@ -41,12 +97,12 @@ function json(res, status, body, extraHeaders = {}) {
 }
 
 function resolveRoom(raw) {
-  if (raw == null || raw === '' || raw === 'main' || raw === 'default') {
-    return DEFAULT_ROOM;
-  }
-  if (typeof raw !== 'string') return null;
-  const code = raw.trim().toUpperCase();
-  if (code === 'MAIN' || code === 'DEFAULT') return DEFAULT_ROOM;
+  // No default room: an explicit room id is required.
+  if (typeof raw !== 'string' || raw.trim() === '') return null;
+  const trimmed = raw.trim();
+  // Legacy shared room, only when requested explicitly (lets existing data be recovered).
+  if (trimmed.toLowerCase() === LEGACY_ROOM) return LEGACY_ROOM;
+  const code = trimmed.toUpperCase();
   return CODE_RE.test(code) ? code : null;
 }
 
@@ -110,12 +166,19 @@ async function readHousehold(room, ifNoneMatch) {
 }
 
 module.exports = async function handler(req, res) {
-  cors(res);
+  if (!cors(req, res)) {
+    return json(res, 403, { error: 'origin_not_allowed' });
+  }
 
   if (req.method === 'OPTIONS') {
     res.statusCode = 204;
     res.end();
     return;
+  }
+
+  const authError = checkAuth(req);
+  if (authError) {
+    return json(res, authError[0], { error: authError[1] });
   }
 
   try {
@@ -134,7 +197,7 @@ module.exports = async function handler(req, res) {
       const result = await readHousehold(room, ifNoneMatch);
 
       if (result.status === 404) {
-        // Empty room — not an error for default shared store
+        // Empty room — not an error (first sync for this room)
         return json(res, 200, {
           payload: {
             version: 1,
@@ -250,6 +313,6 @@ module.exports = async function handler(req, res) {
     return json(res, 405, { error: 'method_not_allowed' });
   } catch (err) {
     console.error('[api/sync]', err);
-    return json(res, 500, { error: 'server_error', message: err?.message || String(err) });
+    return json(res, 500, { error: 'server_error' });
   }
 };

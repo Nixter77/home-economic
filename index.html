@@ -345,8 +345,22 @@
       <div class="card">
         <div class="card-title">Синхронизация (облако)</div>
         <p style="font-size: 0.9rem; color: var(--color-text-muted); margin-bottom: var(--space-md);">
-          Покупки с телефона и компьютера автоматически в одном списке. Работает на Vercel без кодов — просто откройте сайт на обоих устройствах.
+          Покупки с телефона и компьютера в одном списке. Введите один раз на каждом устройстве ключ синхронизации (SYNC_SECRET из настроек Vercel) и одинаковый код комнаты.
         </p>
+        <form id="sync-setup-form" autocomplete="off" style="margin-bottom: var(--space-md);">
+          <div class="form-group">
+            <label class="form-label" for="sync-key-input">Ключ синхронизации</label>
+            <input type="password" id="sync-key-input" class="form-control" autocomplete="off" placeholder="SYNC_SECRET">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="sync-room-input">Код комнаты</label>
+            <div style="display: flex; gap: var(--space-sm);">
+              <input type="text" id="sync-room-input" class="form-control" autocomplete="off" placeholder="HE-XXXX-XXXX" style="flex: 1;">
+              <button type="button" id="sync-room-generate" class="btn btn-secondary">Новый</button>
+            </div>
+          </div>
+          <button type="submit" id="sync-setup-save" class="btn btn-primary btn-block">Сохранить и подключить</button>
+        </form>
         <p id="sync-status-text" style="font-size: 0.95rem; font-weight: 500; margin-bottom: 4px;">—</p>
         <p id="sync-last-text" style="font-size: 0.8rem; color: var(--color-text-muted); margin-bottom: var(--space-md);"></p>
         <div style="display: flex; gap: var(--space-md); flex-wrap: wrap;">
